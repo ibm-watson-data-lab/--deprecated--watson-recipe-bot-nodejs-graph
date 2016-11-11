@@ -1,5 +1,6 @@
-var SlackBot = require('slackbots');
 var dotenv = require('dotenv');
+var ConversationV1 = require('watson-developer-cloud/conversation/v1');
+var SlackBot = require('slackbots');
 
 var slackBotId = process.env.SLACK_BOT_ID;
 
@@ -12,24 +13,14 @@ var bot = new SlackBot({
     name: 'souschef'
 });
 
+var conversation = new ConversationV1({
+  username: process.env.CONVERSATION_USERNAME,
+  password: process.env.CONVERSATION_PASSWORD,
+  version_date: '2016-07-01'
+});
+var conversationWorkflowId = process.env.CONVERSATION_WORKSPACE_ID;
+
 bot.on('start', function() {
-    // // more information about additional params https://api.slack.com/methods/chat.postMessage
-    // var params = {
-    //     icon_emoji: ':cat:'
-    // };
-
-    // // define channel, where bot exist. You can adjust it there https://my.slack.com/services 
-    // bot.postMessageToChannel('general', 'meow!', params);
-
-    // // define existing username instead of 'user_name'
-    // bot.postMessageToUser('user_name', 'meow!', params); 
-
-    // // If you add a 'slackbot' property, 
-    // // you will post to another user's slackbot channel instead of a direct message
-    // bot.postMessageToUser('user_name', 'meow!', { 'slackbot': true, icon_emoji: ':cat:' }); 
-
-    // // define private group instead of 'private_group', where bot exist
-    // bot.postMessageToGroup('private_group', 'meow!', params); 
 });
 
 bot.on('message', function(data) {
@@ -37,11 +28,28 @@ bot.on('message', function(data) {
     console.log(data);
 	if (data.type == 'message' && data.channel.startsWith('D')) {
 		if (data.user != slackBotId) {
-			console.log("Posting to channel " + data.channel);
-			bot.postMessage(data.channel, 'Hi from node', {});
+			processSlackMessage(data);
+			
 		}
 		else {
 			console.log('Received my message.');
 		}
 	}
 });
+
+var processSlackMessage = function(data) {
+	conversation.message({
+		input: { text: data.text },
+		workspace_id: conversationWorkflowId,
+ 	}, function(err, response) {
+		if (err) {
+			console.error(err);
+		} else {
+			reply = "";
+			for (var i=0; i<response.output['text'].length; i++) {
+                reply += response.output['text'][i] + "\n";
+            }
+			bot.postMessage(data.channel, reply, {});
+		}
+	});
+}
