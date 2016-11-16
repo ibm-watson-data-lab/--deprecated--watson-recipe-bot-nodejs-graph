@@ -1,6 +1,5 @@
 var dotenv = require('dotenv');
 var GDS = require('ibm-graph-client');
-var Promise = require("bluebird");
 var RecipeGraph = require('./RecipeGraph');
 var SousChef = require('./SousChef');
 
@@ -20,14 +19,9 @@ var graphClient = new GDS({
 	username: process.env.GRAPH_USERNAME || config.credentials.username,
 	password: process.env.GRAPH_PASSWORD || config.credentials.password,
 });
-var recipeGraph = new RecipeGraph(graphClient);
 
-var slackBotToken = process.env.SLACK_BOT_TOKEN;
-var slackBotId = process.env.SLACK_BOT_ID;
-var recipeClientApiKey = process.env.SPOONACULAR_KEY;
-var watson = process.env.CONVERSATION_USERNAME;
 var sousChef = new SousChef(
-	recipeGraph,
+	new RecipeGraph(graphClient),
 	process.env.SLACK_BOT_TOKEN,
 	process.env.SPOONACULAR_KEY,
 	process.env.CONVERSATION_USERNAME,

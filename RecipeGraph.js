@@ -85,6 +85,74 @@ RecipeGraph.prototype.deleteUsers = function(userIds) {
     //}
 };
 
+// Ingredients
+
+RecipeGraph.prototype.getUniqueIngredientsName = function(ingredientsStr) {
+    var ingredients = ingredientsStr.trim().toLowerCase().split(",");
+    for (var i = 0; i<ingredients.length; i++) {
+        ingredients[i] = ingredients[i].trim();
+    }
+    ingredients.sort();
+    return ingredients.join(',');
+};
+
+RecipeGraph.prototype.findIngredientsVertex = function(ingredientsStr) {
+    return this.findVertex('ingredient', 'name', this.getUniqueIngredientsName(ingredientsStr));
+};
+
+RecipeGraph.prototype.addIngredientsVertex = function(state, ingredientsStr, matchingRecipes) {
+    var ingredientVertex = {label: "ingredient"};
+    ingredientVertex['name'] = this.getUniqueIngredientsName(ingredientsStr);
+    ingredientVertex['detail'] = JSON.stringify(matchingRecipes).replace(/'/g,'\\\'');
+    return this.addVertexIfNotExists(ingredientVertex, 'name')
+        .then((vertex) => {
+            ingredientVertex = vertex;
+            var edge = {label: 'selects', outV: state.lastGraphVertex.id, inV: ingredientVertex.id};
+            return this.addEdgeIfNotExists(edge);
+        })
+        .then(() => {
+            return Promise.resolve(ingredientVertex);
+        });
+};
+
+// Recipes
+
+RecipeGraph.prototype.getUniqueRecipeName = function(recipeId) {
+    return recipeId.trim().toLowerCase();
+};
+
+RecipeGraph.prototype.findRecipeVertex = function(recipeId) {
+    return this.findVertex('recipe', 'name', this.getUniqueRecipeName(recipeId));
+};
+
+RecipeGraph.prototype.addRecipeVertex = function(state, recipeId, recipeTitle, recipeDetail) {
+    var recipeVertex = {label: "recipe"};
+    recipeVertex['name'] = this.getUniqueRecipeName(recipeId);
+    recipeVertex['title'] = recipeTitle.trim().replace(/'/g,'\\\'');
+    recipeVertex['detail'] = recipeDetail.replace(/'/g,'\\\''); //.replace(/\n/g,'\\\\n');
+    return this.addVertexIfNotExists(recipeVertex, 'name')
+        .then((vertex) => {
+            recipeVertex = vertex;
+            var edge = {label: 'selects', outV: state.lastGraphVertex.id, inV: recipeVertex.id};
+            return this.addEdgeIfNotExists(edge);
+        })
+        .then(() => {
+            return Promise.resolve(recipeVertex);
+        });
+};
+
+//public void deleteIngredients(String[] ingredients) throws Exception {
+//    for (String ingredient : ingredients) {
+//        Element[] elements = this.graphClient.runGremlinQuery("g.V().hasLabel(\"ingredient\").has(\"name\", \"" + ingredient + "\")");
+//        if (elements.length > 0) {
+//            for (Element element : elements) {
+//                boolean success = this.graphClient.deleteVertex(((Vertex) element).getId());
+//                logger.debug(String.format("Deleted ingredient %s = %s", ingredient, success));
+//            }
+//        }
+//    }
+//}
+
 // Graph Helper Methods
 
 RecipeGraph.prototype.findVertex = function(label, propertyName, propertyValue) {
@@ -119,7 +187,7 @@ RecipeGraph.prototype.addVertexIfNotExists = function(vertex, uniquePropertyName
                 resolve(response.result.data[0]);
             }
             else {
-                console.log(`Adding ${vertex.label} vertex where ${uniquePropertyName}=${propertyValue}`);
+                console.log(`Creating ${vertex.label} vertex where ${uniquePropertyName}=${propertyValue}`);
                 this.graphClient.vertices().create(vertex, (error,body) => {
                     if (error) {
                         reject(error);
@@ -133,12 +201,31 @@ RecipeGraph.prototype.addVertexIfNotExists = function(vertex, uniquePropertyName
     });
 };
 
-//private void addEdgeIfNotExists(Edge edge) throws Exception {
-//    String query = "g.V(" + edge.getOutV() + ").outE().inV().hasId(" + edge.getInV() + ")";
-//    Element[] elements = this.graphClient.runGremlinQuery(query);
-//    if (elements.length == 0 || !(elements[0] instanceof Vertex)) {
-//        this.graphClient.addEdge(edge);
-//    }
-//}
+RecipeGraph.prototype.addEdgeIfNotExists = function(edge){
+    return new Promise((resolve, reject) => {
+        var query = `g.V(${edge.outV}).outE().inV().hasId(${edge.inV})`;
+        this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
+            if (error) {
+                console.log(`Error finding Edge: ${error}`);
+                reject(error);
+            }
+            else if (response.result && response.result.data && response.result.data.length > 0) {
+                console.log(`Edge from ${edge.outV} to ${edge.inV} exists.`);
+                resolve(null);
+            }
+            else {
+                console.log(`Creating edge from ${edge.outV} to ${edge.inV}`);
+                this.graphClient.edges().create(edge.label, edge.outV, edge.inV, edge.properties, (error,body) => {
+                    if (error) {
+                        reject(error);
+                    }
+                    else {
+                        resolve(null);
+                    }
+                });
+            }
+        });
+    });
+}
 
 module.exports = RecipeGraph;
