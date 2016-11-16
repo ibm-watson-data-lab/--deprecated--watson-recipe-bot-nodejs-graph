@@ -70,10 +70,9 @@ SousChef.prototype.processSlackMessage = function(data) {
 				}
 				return this.handleSelectionMessage(state, selection);
 			}
-			//else if (response.getEntities() != null && response.getEntities().size() > 0 && response.getEntities().get(0).getEntity() == "cuisine") {
-			//	String cuisine = response.getEntities().get(0).getValue();
-			//	reply = this.handleCuisineMessage(state, cuisine);
-			//}
+			else if (response.entities && response.entities.length > 0 && response.entities[0].entity == "cuisine") {
+				return this.handleCuisineMessage(state, response.entities[0].value);
+			}
 			else {
 				return this.handleStartMessage(state, response);
 			}
@@ -140,6 +139,41 @@ SousChef.prototype.handleIngredientsMessage = function(state, message) {
 			// update state
 			state.conversationContext["recipes"] = matchingRecipes;
 			state.lastGraphVertex = ingredientVertex;
+			// return the response
+			var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
+			for (var i = 0; i < matchingRecipes.length; i++) {
+				response += `${(i + 1)}.${matchingRecipes[i].title}\n`;
+			}
+			response += '\nPlease enter the corresponding number of your choice.';
+			return Promise.resolve(response);
+		});
+};
+
+SousChef.prototype.handleCuisineMessage = function(state, message) {
+	// we want to get a list of recipes based on the cuisine (message)
+	// first we see if we already have the cuisines in our graph
+	var cuisine = message;
+	return this.recipeGraph.findCuisineVertex(cuisine)
+		.then((vertex) => {
+			if (vertex) {
+				console.log(`Cuisine vertex exists for ${cuisine}. Returning recipes from vertex.`);
+				return Promise.resolve(vertex);
+			}
+			else {
+				// we don't have the cuisine in our graph yet, so get list of recipes from Spoonacular
+				console.log(`Cuisine vertex does not exist for ${cuisine}. Querying Spoonacular for recipes.`);
+				return this.recipeClient.findByCuisine(cuisine)
+					.then((matchingRecipes) => {
+						// add vertex for the cuisines to our graph
+						return this.recipeGraph.addCuisineVertex(state, cuisine, matchingRecipes)
+					});
+			}
+		})
+		.then((cuisineVertex) => {
+			var matchingRecipes = JSON.parse(cuisineVertex.properties.detail[0].value);
+			// update state
+			state.conversationContext["recipes"] = matchingRecipes;
+			state.lastGraphVertex = cuisineVertex;
 			// return the response
 			var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
 			for (var i = 0; i < matchingRecipes.length; i++) {

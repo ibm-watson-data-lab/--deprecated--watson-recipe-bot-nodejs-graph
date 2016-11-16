@@ -73,18 +73,6 @@ RecipeGraph.prototype.addUserVertex = function(state) {
         });
 };
 
-RecipeGraph.prototype.deleteUsers = function(userIds) {
-    //for (String userId : userIds) {
-    //    Element[] elements = this.graphClient.runGremlinQuery("g.V().hasLabel(\"person\").has(\"name\", \"" + userId + "\")");
-    //    if (elements.length > 0) {
-    //        for (Element element : elements) {
-    //            boolean success = this.graphClient.deleteVertex(((Vertex) element).getId());
-    //            logger.debug(String.format("Deleted user %s = %s", userId, success));
-    //        }
-    //    }
-    //}
-};
-
 // Ingredients
 
 RecipeGraph.prototype.getUniqueIngredientsName = function(ingredientsStr) {
@@ -115,7 +103,32 @@ RecipeGraph.prototype.addIngredientsVertex = function(state, ingredientsStr, mat
         });
 };
 
-// Recipes
+// Cuisine
+
+RecipeGraph.prototype.getUniqueCuisineName = function(cuisine) {
+    return cuisine.trim().toLowerCase();
+};
+
+RecipeGraph.prototype.findCuisineVertex = function(cuisine) {
+    return this.findVertex('cuisine', 'name', this.getUniqueCuisineName(cuisine));
+};
+
+RecipeGraph.prototype.addCuisineVertex = function(state, cuisine, matchingRecipes) {
+    var cuisineVertex = {label: "cuisine"};
+    cuisineVertex['name'] = this.getUniqueCuisineName(cuisine);
+    cuisineVertex['detail'] = JSON.stringify(matchingRecipes).replace(/'/g,'\\\'');
+    return this.addVertexIfNotExists(cuisineVertex, 'name')
+        .then((vertex) => {
+            cuisineVertex = vertex;
+            var edge = {label: 'selects', outV: state.lastGraphVertex.id, inV: cuisineVertex.id};
+            return this.addEdgeIfNotExists(edge);
+        })
+        .then(() => {
+            return Promise.resolve(cuisineVertex);
+        });
+};
+
+// Recipe
 
 RecipeGraph.prototype.getUniqueRecipeName = function(recipeId) {
     return recipeId.trim().toLowerCase();
@@ -140,18 +153,6 @@ RecipeGraph.prototype.addRecipeVertex = function(state, recipeId, recipeTitle, r
             return Promise.resolve(recipeVertex);
         });
 };
-
-//public void deleteIngredients(String[] ingredients) throws Exception {
-//    for (String ingredient : ingredients) {
-//        Element[] elements = this.graphClient.runGremlinQuery("g.V().hasLabel(\"ingredient\").has(\"name\", \"" + ingredient + "\")");
-//        if (elements.length > 0) {
-//            for (Element element : elements) {
-//                boolean success = this.graphClient.deleteVertex(((Vertex) element).getId());
-//                logger.debug(String.format("Deleted ingredient %s = %s", ingredient, success));
-//            }
-//        }
-//    }
-//}
 
 // Graph Helper Methods
 
