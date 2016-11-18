@@ -29,7 +29,7 @@ SousChef.prototype.run = function() {
 						this.processSlackMessage(data);
 					}
 					else {
-						console.log('Received my message.');
+						// ignore messages from the bot (messages we sent)
 					}
 				}
 			});
@@ -60,8 +60,14 @@ SousChef.prototype.processSlackMessage = function(data) {
 	this.sendRequestToConversation(request)
 		.then((response) => {
 			state.conversationContext = response.context;
-			if (state.conversationContext["is_ingredients"]) {
+			if (state.conversationContext["is_favorites"]) {
+				return this.handleFavoritesMessage(state);
+			}
+			else if (state.conversationContext["is_ingredients"]) {
 				return this.handleIngredientsMessage(state, message);
+			}
+			else if (response.entities && response.entities.length > 0 && response.entities[0].entity == "cuisine") {
+				return this.handleCuisineMessage(state, response.entities[0].value);
 			}
 			else if (state.conversationContext["is_selection"]) {
 				var selection = -1;
@@ -69,9 +75,6 @@ SousChef.prototype.processSlackMessage = function(data) {
 					selection = parseInt(state.conversationContext["selection"]);
 				}
 				return this.handleSelectionMessage(state, selection);
-			}
-			else if (response.entities && response.entities.length > 0 && response.entities[0].entity == "cuisine") {
-				return this.handleCuisineMessage(state, response.entities[0].value);
 			}
 			else {
 				return this.handleStartMessage(state, response);
@@ -103,15 +106,53 @@ SousChef.prototype.handleStartMessage = function(state, response) {
 	for (var i=0; i<response.output['text'].length; i++) {
 		reply += response.output['text'][i] + "\n";
 	}
-	if (state.lastGraphVertex) {
+	if (state.userVertex) {
 		return Promise.resolve(reply);
 	}
 	else {
-		return this.recipeGraph.addUserVertex(state)
-			.then(() => {
+		return this.recipeGraph.addUserVertex(state.userId)
+			.then((userVertex) => {
+				state.userVertex = userVertex;
 				return Promise.resolve(reply);
 			});
 	}
+};
+
+SousChef.prototype.handleFavoritesMessage = function(state)  {
+	var matchingRecipes = [];
+	return this.recipeGraph.findRecipesForUser(state.userId)
+		.then(function(paths) {
+			if (paths.length > 0) {
+				paths.sort((path1, path2) => {
+					var count1 = 1;
+					var count2 = 1;
+					if (path1.objects[1].properties.count) {
+						count1 = path1.objects[1].properties.count;
+					}
+					if (path2.objects[1].properties.count) {
+						count2 = path2.objects[1].properties.count;
+					}
+					return count2 - count1; // reverse sort
+				});
+				for (var path of paths) {
+					var recipe = {
+						id: path.objects[2].properties.name[0].value,
+						title: path.objects[2].properties.title[0].value,
+					}
+					matchingRecipes.push(recipe);
+				}
+			}
+			// update state
+			state.conversationContext['recipes'] = matchingRecipes;
+			state.ingredientCuisineIndex = null;
+			// return the response
+			var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
+			for (var i = 0; i < matchingRecipes.length; i++) {
+				response += `${(i + 1)}.${matchingRecipes[i].title}\n`;
+			}
+			response += '\nPlease enter the corresponding number of your choice.';
+			return Promise.resolve(response);
+		});
 }
 
 SousChef.prototype.handleIngredientsMessage = function(state, message) {
@@ -122,7 +163,11 @@ SousChef.prototype.handleIngredientsMessage = function(state, message) {
 		.then((vertex) => {
 			if (vertex) {
 				console.log(`Ingredients vertex exists for ${ingredientsStr}. Returning recipes from vertex.`);
-				return Promise.resolve(vertex);
+				// increment the count on the user-ingredient edge
+				return this.recipeGraph.incrementIngredientsEdge(vertex, state.userVertex)
+					.then(() => {
+						return Promise.resolve(vertex);
+					});
 			}
 			else {
 				// we don't have the ingredients in our graph yet, so get list of recipes from Spoonacular
@@ -130,7 +175,7 @@ SousChef.prototype.handleIngredientsMessage = function(state, message) {
 				return this.recipeClient.findByIngredients(ingredientsStr)
 					.then((matchingRecipes) => {
 						// add vertex for the ingredients to our graph
-						return this.recipeGraph.addIngredientsVertex(state, ingredientsStr, matchingRecipes)
+						return this.recipeGraph.addIngredientsVertex(ingredientsStr, matchingRecipes, state.userVertex)
 					});
 			}
 		})
@@ -138,7 +183,7 @@ SousChef.prototype.handleIngredientsMessage = function(state, message) {
 			var matchingRecipes = JSON.parse(ingredientVertex.properties.detail[0].value);
 			// update state
 			state.conversationContext["recipes"] = matchingRecipes;
-			state.lastGraphVertex = ingredientVertex;
+			state.ingredientCuisineVertex = ingredientVertex;
 			// return the response
 			var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
 			for (var i = 0; i < matchingRecipes.length; i++) {
@@ -157,7 +202,11 @@ SousChef.prototype.handleCuisineMessage = function(state, message) {
 		.then((vertex) => {
 			if (vertex) {
 				console.log(`Cuisine vertex exists for ${cuisine}. Returning recipes from vertex.`);
-				return Promise.resolve(vertex);
+				// increment the count on the user-cuisine edge
+				return this.recipeGraph.incrementCuisineEdge(vertex, state.userVertex)
+					.then(() => {
+						return Promise.resolve(vertex);
+					});
 			}
 			else {
 				// we don't have the cuisine in our graph yet, so get list of recipes from Spoonacular
@@ -165,7 +214,7 @@ SousChef.prototype.handleCuisineMessage = function(state, message) {
 				return this.recipeClient.findByCuisine(cuisine)
 					.then((matchingRecipes) => {
 						// add vertex for the cuisines to our graph
-						return this.recipeGraph.addCuisineVertex(state, cuisine, matchingRecipes)
+						return this.recipeGraph.addCuisineVertex(cuisine, matchingRecipes, state.userVertex)
 					});
 			}
 		})
@@ -173,7 +222,7 @@ SousChef.prototype.handleCuisineMessage = function(state, message) {
 			var matchingRecipes = JSON.parse(cuisineVertex.properties.detail[0].value);
 			// update state
 			state.conversationContext["recipes"] = matchingRecipes;
-			state.lastGraphVertex = cuisineVertex;
+			state.ingredientCuisineVertex = cuisineVertex;
 			// return the response
 			var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
 			for (var i = 0; i < matchingRecipes.length; i++) {
@@ -194,7 +243,11 @@ SousChef.prototype.handleSelectionMessage = function(state, selection) {
 			.then((vertex) => {
 				if (vertex) {
 					console.log(`Recipe vertex exists for ${recipeId}. Returning recipe steps from vertex.`);
-					return Promise.resolve(vertex);
+					// increment the count on the ingredient/cuisine-recipe edge and the user-recipe edge
+					return this.recipeGraph.incrementRecipeEdges(vertex, state.ingredientCuisineVertex, state.userVertex)
+						.then(() => {
+							return Promise.resolve(vertex);
+						});
 				}
 				else {
 					console.log(`Recipe vertex does not exist for ${recipeId}. Querying Spoonacular for details.`);
@@ -208,14 +261,14 @@ SousChef.prototype.handleSelectionMessage = function(state, selection) {
 						.then((response) => {
 							recipeSteps = response;
 							var recipeDetail = this.makeFormattedSteps(recipeInfo, recipeSteps);
-							return this.recipeGraph.addRecipeVertex(state, recipeId, recipeInfo['title'], recipeDetail);
+							return this.recipeGraph.addRecipeVertex(recipeId, recipeInfo['title'], recipeDetail, state.ingredientCuisineVertex, state.userVertex);
 						})
 				}
 			})
 			.then((recipeVertex) => {
-				state.lastGraphVertex = null;
+				state.ingredientCuisineVertex = null;
 				state.conversationContext = null;
-				var recipeDetail = recipeVertex.properties.detail[0].value;
+				var recipeDetail = recipeVertex.properties.detail[0].value.replace(/\\n/g,'\n');
 				return Promise.resolve(recipeDetail);
 			});
 	}
@@ -229,9 +282,23 @@ SousChef.prototype.makeFormattedSteps =  function(recipeInfo, recipeSteps) {
 	var response = "Ok, it takes *";
 	response += `${recipeInfo['readyInMinutes']}* minutes to make *`;
 	response += `${recipeInfo['servings']}* servings of *`;
-	response += `${recipeInfo['title']}*. Here are the steps:`; //\n\n
+	response += `${recipeInfo['title']}*. Here are the steps:\n\n`;
 	if (recipeSteps != null && recipeSteps.length > 0) {
-		// mw:TODO - add steps
+		for (var i=0; i<recipeSteps.length; i++) {
+			var equipStr = '';
+			for (var e of recipeSteps[i]['equipment']) {
+				equipStr += `${e['name']},`;
+			}
+			if (equipStr.length == 0) {
+				equipStr = 'None';
+			}
+			else {
+				equipStr = equipStr.substring(0, equipStr.length - 1);
+			}
+			response += `*Step ${i+1}*:\n`;
+			response += `_Equipment_: ${equipStr}\n`;
+          	response += `_Action_: ${recipeSteps[i]['step']}\n\n`;
+		}
 	}
 	else {
 		response += '_No instructions available for this recipe._\n\n';
