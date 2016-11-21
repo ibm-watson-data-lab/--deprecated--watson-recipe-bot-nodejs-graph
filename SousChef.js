@@ -60,19 +60,19 @@ SousChef.prototype.processSlackMessage = function(data) {
 	this.sendRequestToConversation(request)
 		.then((response) => {
 			state.conversationContext = response.context;
-			if (state.conversationContext["is_favorites"]) {
+			if (state.conversationContext['is_favorites']) {
 				return this.handleFavoritesMessage(state);
 			}
-			else if (state.conversationContext["is_ingredients"]) {
+			else if (state.conversationContext['is_ingredients']) {
 				return this.handleIngredientsMessage(state, message);
 			}
-			else if (response.entities && response.entities.length > 0 && response.entities[0].entity == "cuisine") {
+			else if (response.entities && response.entities.length > 0 && response.entities[0].entity == 'cuisine') {
 				return this.handleCuisineMessage(state, response.entities[0].value);
 			}
-			else if (state.conversationContext["is_selection"]) {
+			else if (state.conversationContext['is_selection']) {
 				var selection = -1;
-				if (state.conversationContext["selection"]) {
-					selection = parseInt(state.conversationContext["selection"]);
+				if (state.conversationContext['selection']) {
+					selection = parseInt(state.conversationContext['selection']);
 				}
 				return this.handleSelectionMessage(state, selection);
 			}
@@ -303,6 +303,7 @@ SousChef.prototype.makeFormattedSteps =  function(recipeInfo, recipeSteps) {
 	else {
 		response += '_No instructions available for this recipe._\n\n';
 	}
+	response += '*Say anything to me to start over...*';
 	return response;
 }
 
