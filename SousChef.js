@@ -35,7 +35,7 @@ SousChef.prototype.run = function() {
 			});
 		})
 		.catch((error) => {
-			console.log("Error: " + error);
+			console.log(`Error: ${error}`);
 			process.exit();
 		});
 }
@@ -102,9 +102,9 @@ SousChef.prototype.sendRequestToConversation = function(request) {
 };
 
 SousChef.prototype.handleStartMessage = function(state, response) {
-	var reply = "";
+	var reply = '';
 	for (var i=0; i<response.output['text'].length; i++) {
-		reply += response.output['text'][i] + "\n";
+		reply += response.output['text'][i] + '\n';
 	}
 	if (state.userVertex) {
 		return Promise.resolve(reply);
@@ -182,7 +182,7 @@ SousChef.prototype.handleIngredientsMessage = function(state, message) {
 		.then((ingredientVertex) => {
 			var matchingRecipes = JSON.parse(ingredientVertex.properties.detail[0].value);
 			// update state
-			state.conversationContext["recipes"] = matchingRecipes;
+			state.conversationContext['recipes'] = matchingRecipes;
 			state.ingredientCuisineVertex = ingredientVertex;
 			// return the response
 			var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
@@ -221,7 +221,7 @@ SousChef.prototype.handleCuisineMessage = function(state, message) {
 		.then((cuisineVertex) => {
 			var matchingRecipes = JSON.parse(cuisineVertex.properties.detail[0].value);
 			// update state
-			state.conversationContext["recipes"] = matchingRecipes;
+			state.conversationContext['recipes'] = matchingRecipes;
 			state.ingredientCuisineVertex = cuisineVertex;
 			// return the response
 			var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
@@ -273,13 +273,13 @@ SousChef.prototype.handleSelectionMessage = function(state, selection) {
 			});
 	}
 	else {
-		state.conversationContext["selection_valid"] = false;
-		return Promise.resolve("Invalid selection! Say anything to see your choices again...");
+		state.conversationContext['selection_valid'] = false;
+		return Promise.resolve('Invalid selection! Say anything to see your choices again...');
 	}
 };
 
 SousChef.prototype.makeFormattedSteps =  function(recipeInfo, recipeSteps) {
-	var response = "Ok, it takes *";
+	var response = 'Ok, it takes *';
 	response += `${recipeInfo['readyInMinutes']}* minutes to make *`;
 	response += `${recipeInfo['servings']}* servings of *`;
 	response += `${recipeInfo['title']}*. Here are the steps:\n\n`;

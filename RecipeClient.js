@@ -1,5 +1,5 @@
 var https = require('https');
-var host = "spoonacular-recipe-food-nutrition-v1.p.mashape.com";
+var host = 'spoonacular-recipe-food-nutrition-v1.p.mashape.com';
 var Promise = require('bluebird');
 
 function RecipeClient(apiKey) {

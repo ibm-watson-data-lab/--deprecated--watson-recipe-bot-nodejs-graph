@@ -1,4 +1,4 @@
-var Promise = require("bluebird");
+var Promise = require('bluebird');
 
 function RecipeGraph(graphClient) {
     this.graphClient = graphClient; // Note: this library cannot be promisified using promisifyAll
@@ -6,7 +6,7 @@ function RecipeGraph(graphClient) {
 
 RecipeGraph.prototype.initGraph = function() {
     // Set Schema
-    console.log("Getting Graph Schema...");
+    console.log('Getting Graph Schema...');
     return new Promise((resolve, reject) => {
         this.graphClient.session((error, token) => {
             this.graphClient.config.session = token;
@@ -41,7 +41,7 @@ RecipeGraph.prototype.initGraph = function() {
                             ],
                             edgeIndexes: []
                         };
-                        console.log("Creating Graph Schema...");
+                        console.log('Creating Graph Schema...');
                         this.graphClient.schema().set(schema, (error, body) => {
                             if (error) {
                                 reject(error);
@@ -52,7 +52,7 @@ RecipeGraph.prototype.initGraph = function() {
                         });
                     }
                     else {
-                        console.log("Graph Schema exists.");
+                        console.log('Graph Schema exists.');
                         resolve(schema);
                     }
                 };
@@ -66,7 +66,7 @@ RecipeGraph.prototype.initGraph = function() {
 RecipeGraph.prototype.addUserVertex = function(userId) {
     var userVertex = { label: 'person' };
     userVertex['name'] = userId;
-    return this.addVertexIfNotExists(userVertex, "name")
+    return this.addVertexIfNotExists(userVertex,'name')
         .then((vertex) => {
             return Promise.resolve(vertex);
         });
@@ -75,7 +75,7 @@ RecipeGraph.prototype.addUserVertex = function(userId) {
 // Ingredients
 
 RecipeGraph.prototype.getUniqueIngredientsName = function(ingredientsStr) {
-    var ingredients = ingredientsStr.trim().toLowerCase().split(",");
+    var ingredients = ingredientsStr.trim().toLowerCase().split(',');
     for (var i = 0; i<ingredients.length; i++) {
         ingredients[i] = ingredients[i].trim();
     }
@@ -88,7 +88,7 @@ RecipeGraph.prototype.findIngredientsVertex = function(ingredientsStr) {
 };
 
 RecipeGraph.prototype.addIngredientsVertex = function(ingredientsStr, matchingRecipes, userVertex) {
-    var ingredientVertex = {label: "ingredient"};
+    var ingredientVertex = {label: 'ingredient'};
     ingredientVertex['name'] = this.getUniqueIngredientsName(ingredientsStr);
     ingredientVertex['detail'] = JSON.stringify(matchingRecipes).replace(/'/g,'\\\'');
     return this.addVertexIfNotExists(ingredientVertex, 'name')
@@ -121,7 +121,7 @@ RecipeGraph.prototype.findCuisineVertex = function(cuisine) {
 };
 
 RecipeGraph.prototype.addCuisineVertex = function(cuisine, matchingRecipes, userVertex) {
-    var cuisineVertex = {label: "cuisine"};
+    var cuisineVertex = {label: 'cuisine'};
     cuisineVertex['name'] = this.getUniqueCuisineName(cuisine);
     cuisineVertex['detail'] = JSON.stringify(matchingRecipes).replace(/'/g,'\\\'');
     return this.addVertexIfNotExists(cuisineVertex, 'name')
@@ -155,10 +155,10 @@ RecipeGraph.prototype.findRecipeVertex = function(recipeId) {
 
 RecipeGraph.prototype.findRecipesForUser = function(userId) {
     return new Promise((resolve, reject) => {
-        var query = 'g.V().hasLabel("person").has("name", "' + userId + '").outE().inV().hasLabel("recipe").path()';
-        this.graphClient.gremlin('def g = graph.traversal(); ' + query, (error, response) => {
+        var query = `g.V().hasLabel("person").has("name", "${userId}").outE().inV().hasLabel("recipe").path()`;
+        this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
             if (error) {
-                console.log('Error finding Vertexes: ' + error);
+                console.log(`Error finding Vertexes: ${error}`);
                 reject(error);
             }
             else if (response.result && response.result.data && response.result.data.length > 0) {
@@ -172,7 +172,7 @@ RecipeGraph.prototype.findRecipesForUser = function(userId) {
 };
 
 RecipeGraph.prototype.addRecipeVertex = function(recipeId, recipeTitle, recipeDetail, ingredientCuisineVertex, userVertex) {
-    var recipeVertex = {label: "recipe"};
+    var recipeVertex = {label: 'recipe'};
     recipeVertex['name'] = this.getUniqueRecipeName(recipeId);
     recipeVertex['title'] = recipeTitle.trim().replace(/'/g,'\\\'');
     recipeVertex['detail'] = recipeDetail.replace(/'/g,'\\\'').replace(/\n/g,'\\\\n');
@@ -217,10 +217,10 @@ RecipeGraph.prototype.incrementRecipeEdges = function(recipeVertex, ingredientCu
 
 RecipeGraph.prototype.findVertex = function(label, propertyName, propertyValue) {
     return new Promise((resolve, reject) => {
-        var query = 'g.V().hasLabel("' + label + '").has("' + propertyName + '", "' + propertyValue + '")';
-        this.graphClient.gremlin('def g = graph.traversal(); ' + query, (error, response) => {
+        var query = `g.V().hasLabel("${label}").has("${propertyName}", "${propertyValue}")`;
+        this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
             if (error) {
-                console.log('Error finding Vertex: ' + error);
+                console.log(`Error finding Vertex: ${error}`);
                 reject(error);
             }
             else if (response.result && response.result.data && response.result.data.length > 0) {
