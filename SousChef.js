@@ -179,7 +179,7 @@ class SousChef {
                     console.log(`Ingredient does not exist for ${ingredientsStr}. Querying Spoonacular for recipes.`);
                     return this.recipeClient.findByIngredients(ingredientsStr)
                         .then((matchingRecipes) => {
-                            // add ingredient
+                            // add ingredient to datastore
                             return this.recipeStore.addIngredient(ingredientsStr, matchingRecipes, state.user)
                         });
                 }
@@ -218,7 +218,7 @@ class SousChef {
                     console.log(`Cuisine does not exist for ${cuisineStr}. Querying Spoonacular for recipes.`);
                     return this.recipeClient.findByCuisine(cuisineStr)
                         .then((matchingRecipes) => {
-                            // add cusisine
+                            // add cuisine to datastore
                             return this.recipeStore.addCuisine(cuisineStr, matchingRecipes, state.user)
                         });
                 }
@@ -266,6 +266,7 @@ class SousChef {
                             .then((response) => {
                                 recipeSteps = response;
                                 var recipeDetail = this.makeFormattedSteps(recipeInfo, recipeSteps);
+                                // add recipe to datastore
                                 return this.recipeStore.addRecipe(recipeId, recipeInfo['title'], recipeDetail, state.ingredientCuisine, state.user);
                             })
                     }
