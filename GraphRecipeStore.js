@@ -158,7 +158,7 @@ class GraphRecipeStore {
         return this.findVertex('recipe', 'name', this.getUniqueRecipeName(recipeId));
     }
 
-    findRecipesForUser(userId) {
+    findFavoriteRecipesForUser(userId, count) {
         return new Promise((resolve, reject) => {
             var query = `g.V().hasLabel("person").has("name", "${userId}").outE().inV().hasLabel("recipe").path()`;
             this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
@@ -167,10 +167,35 @@ class GraphRecipeStore {
                     reject(error);
                 }
                 else if (response.result && response.result.data && response.result.data.length > 0) {
-                    resolve(response.result.data);
+                    var recipes = [];
+                    var paths = response.result.data;
+                    paths.sort((path1, path2) => {
+                        var count1 = 1;
+                        var count2 = 1;
+                        if (path1.objects[1].properties.count) {
+                            count1 = path1.objects[1].properties.count;
+                        }
+                        if (path2.objects[1].properties.count) {
+                            count2 = path2.objects[1].properties.count;
+                        }
+                        return count2 - count1; // reverse sort
+                    });
+                    var i = -1;
+                    for (var path of paths) {
+                        i++;
+                        if (i >= count) {
+                            break;
+                        }
+                        var recipe = {
+                            id: path.objects[2].properties.name[0].value,
+                            title: path.objects[2].properties.title[0].value,
+                        }
+                        recipes.push(recipe);
+                    }
+                    resolve(recipes);
                 }
                 else {
-                    resolve(null);
+                    resolve([]);
                 }
             });
         });

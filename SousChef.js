@@ -124,36 +124,15 @@ class SousChef {
     }
 
     handleFavoritesMessage(state) {
-        var matchingRecipes = [];
-        return this.recipeStore.findRecipesForUser(state.userId)
-            .then(function (paths) {
-                if (paths.length > 0) {
-                    paths.sort((path1, path2) => {
-                        var count1 = 1;
-                        var count2 = 1;
-                        if (path1.objects[1].properties.count) {
-                            count1 = path1.objects[1].properties.count;
-                        }
-                        if (path2.objects[1].properties.count) {
-                            count2 = path2.objects[1].properties.count;
-                        }
-                        return count2 - count1; // reverse sort
-                    });
-                    for (var path of paths) {
-                        var recipe = {
-                            id: path.objects[2].properties.name[0].value,
-                            title: path.objects[2].properties.title[0].value,
-                        }
-                        matchingRecipes.push(recipe);
-                    }
-                }
+        return this.recipeStore.findFavoriteRecipesForUser(state.userId, 5)
+            .then(function (recipes) {
                 // update state
-                state.conversationContext['recipes'] = matchingRecipes;
+                state.conversationContext['recipes'] = recipes;
                 state.ingredientCuisine = null;
                 // return the response
                 var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
-                for (var i = 0; i < matchingRecipes.length; i++) {
-                    response += `${(i + 1)}.${matchingRecipes[i].title}\n`;
+                for (var i = 0; i < recipes.length; i++) {
+                    response += `${(i + 1)}.${recipes[i].title}\n`;
                 }
                 response += '\nPlease enter the corresponding number of your choice.';
                 return Promise.resolve(response);
