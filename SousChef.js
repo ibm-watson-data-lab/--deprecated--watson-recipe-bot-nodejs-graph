@@ -124,7 +124,7 @@ class SousChef {
     }
 
     handleFavoritesMessage(state) {
-        return this.recipeStore.findFavoriteRecipesForUser(state.userId, 5)
+        return this.recipeStore.findFavoriteRecipesForUser(state.user, 5)
             .then(function (recipes) {
                 // update state
                 state.conversationContext['recipes'] = recipes;

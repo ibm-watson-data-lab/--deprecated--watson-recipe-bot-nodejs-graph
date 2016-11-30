@@ -158,9 +158,9 @@ class GraphRecipeStore {
         return this.findVertex('recipe', 'name', this.getUniqueRecipeName(recipeId));
     }
 
-    findFavoriteRecipesForUser(userId, count) {
+    findFavoriteRecipesForUser(userVertex, count) {
         return new Promise((resolve, reject) => {
-            var query = `g.V().hasLabel("person").has("name", "${userId}").outE().inV().hasLabel("recipe").path()`;
+            var query = `g.V().hasLabel("person").has("name", "${userVertex.properties['name'][0]['value']}").outE().inV().hasLabel("recipe").path()`;
             this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
                 if (error) {
                     console.log(`Error finding Vertexes: ${error}`);
