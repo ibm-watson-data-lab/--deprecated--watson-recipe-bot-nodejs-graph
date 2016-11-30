@@ -1,6 +1,6 @@
 var dotenv = require('dotenv');
 var GDS = require('ibm-graph-client');
-var RecipeGraph = require('./RecipeGraph');
+var GraphRecipeStore = require('./GraphRecipeStore');
 var SousChef = require('./SousChef');
 
 // load from .env
@@ -21,7 +21,7 @@ var graphClient = new GDS({
 });
 
 var sousChef = new SousChef(
-	new RecipeGraph(graphClient),
+	new GraphRecipeStore(graphClient),
 	process.env.SLACK_BOT_TOKEN,
 	process.env.SPOONACULAR_KEY,
 	process.env.CONVERSATION_USERNAME,
