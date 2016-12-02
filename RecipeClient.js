@@ -1,8 +1,6 @@
 'use strict';
 
 var https = require('https');
-var Promise = require('bluebird');
-
 var host = 'spoonacular-recipe-food-nutrition-v1.p.mashape.com';
 
 class RecipeClient {

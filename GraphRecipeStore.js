@@ -1,7 +1,5 @@
 'use strict';
 
-var Promise = require('bluebird');
-
 class GraphRecipeStore {
 
     constructor(graphClient) {
