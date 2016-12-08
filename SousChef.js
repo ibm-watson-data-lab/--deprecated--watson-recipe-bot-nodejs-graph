@@ -148,7 +148,7 @@ class SousChef {
                 if (ingredient) {
                     console.log(`Ingredient exists for ${ingredientsStr}. Returning recipes from datastore.`);
                     // increment the count on the user-ingredient
-                    return this.recipeStore.incrementIngredientForUser(ingredient, state.user)
+                    return this.recipeStore.recordIngredientRequestForUser(ingredient, state.user)
                         .then(() => {
                             return Promise.resolve(ingredient);
                         });
@@ -187,7 +187,7 @@ class SousChef {
                 if (cuisine) {
                     console.log(`Cuisine exists for ${cuisineStr}. Returning recipes from datastore.`);
                     // increment the count on the user-cuisine
-                    return this.recipeStore.incrementCuisineForUser(cuisine, state.user)
+                    return this.recipeStore.recordCuisineRequestForUser(cuisine, state.user)
                         .then(() => {
                             return Promise.resolve(cuisine);
                         });
@@ -228,7 +228,7 @@ class SousChef {
                     if (recipe) {
                         console.log(`Recipe exists for ${recipeId}. Returning recipe steps from datastore.`);
                         // increment the count on the ingredient/cuisine-recipe and the user-recipe
-                        return this.recipeStore.incrementRecipeForUser(recipe, state.ingredientCuisine, state.user)
+                        return this.recipeStore.recordRecipeRequestForUser(recipe, state.ingredientCuisine, state.user)
                             .then(() => {
                                 return Promise.resolve(recipe);
                             });

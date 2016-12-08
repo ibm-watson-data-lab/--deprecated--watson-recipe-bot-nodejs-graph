@@ -2,10 +2,18 @@
 
 class GraphRecipeStore {
 
+    /**
+     * Creates a new instance of GraphRecipeStore.
+     * @param {Object} graphClient - The instance of the IBM Graph client to use
+     */
     constructor(graphClient) {
         this.graphClient = graphClient; // Note: this library cannot be promisified using promisifyAll
     }
 
+    /**
+     * Creates and initializes the Graph schema.
+     * @returns {Promise.<TResult>}
+     */
     init() {
         // Set Schema
         console.log('Getting Graph Schema...');
@@ -66,6 +74,11 @@ class GraphRecipeStore {
 
     // User
 
+    /**
+     * Adds a new user to Graph if a user with the specified ID does not already exist.
+     * @param userId - The ID of the user (typically the ID returned from Slack)
+     * @returns {Promise.<TResult>}
+     */
     addUser(userId) {
         var userVertex = {label: 'person'};
         userVertex['name'] = userId;
@@ -77,6 +90,11 @@ class GraphRecipeStore {
 
     // Ingredients
 
+    /**
+     * Gets the unique name for the ingredient to be stored in Graph.
+     * @param ingredientsStr - The ingredient or comma-separated list of ingredients specified by the user
+     * @returns {string}
+     */
     getUniqueIngredientsName(ingredientsStr) {
         var ingredients = ingredientsStr.trim().toLowerCase().split(',');
         for (var i = 0; i < ingredients.length; i++) {
@@ -86,24 +104,43 @@ class GraphRecipeStore {
         return ingredients.join(',');
     }
 
+    /**
+     * Finds the ingredient based on the specified ingredientsStr in Graph.
+     * @param ingredientsStr - The ingredient or comma-separated list of ingredients specified by the user
+     * @returns {Promise.<TResult>}
+     */
     findIngredient(ingredientsStr) {
         return this.findVertex('ingredient', 'name', this.getUniqueIngredientsName(ingredientsStr));
     }
 
+    /**
+     * Adds a new ingredient to Graph if an ingredient based on the specified ingredientsStr does not already exist.
+     * @param ingredientsStr - The ingredient or comma-separated list of ingredients specified by the user
+     * @param matchingRecipes - The recipes that match the specified ingredientsStr
+     * @param userVertex - The existing Graph vertex for the user
+     * @returns {Promise.<TResult>}
+     */
     addIngredient(ingredientsStr, matchingRecipes, userVertex) {
         var ingredientVertex = {label: 'ingredient'};
         ingredientVertex['name'] = this.getUniqueIngredientsName(ingredientsStr);
         ingredientVertex['detail'] = JSON.stringify(matchingRecipes).replace(/'/g, '\\\'');
         return this.addVertexIfNotExists(ingredientVertex, 'name')
             .then((vertex) => {
-                return this.incrementIngredientForUser(vertex, userVertex)
+                return this.recordIngredientRequestForUser(vertex, userVertex)
                     .then(() => {
                         return Promise.resolve(vertex);
                     });
             });
     }
 
-    incrementIngredientForUser(ingredientVertex, userVertex) {
+    /**
+     * Creates or updates an edge between the specified user and ingredient.
+     * Stores the number of times the ingredient has been accessed by the user in the edge.
+     * @param ingredientVertex - The existing Graph vertex for the ingredient
+     * @param userVertex - The existing Graph vertex for the user
+     * @returns {Promise.<TResult>}
+     */
+    recordIngredientRequestForUser(ingredientVertex, userVertex) {
         var edge = {
             label: 'selects',
             outV: userVertex.id,
@@ -115,28 +152,52 @@ class GraphRecipeStore {
 
     // Cuisine
 
+    /**
+     * Gets the unique name for the cuisine to be stored in Graph.
+     * @param cuisine - The cuisine specified by the user
+     * @returns {string}
+     */
     getUniqueCuisineName(cuisine) {
         return cuisine.trim().toLowerCase();
     }
 
+    /**
+     * Finds the cuisine with the specified name in Graph.
+     * @param cuisine - The cuisine specified by the user
+     * @returns {Promise.<TResult>}
+     */
     findCuisine(cuisine) {
         return this.findVertex('cuisine', 'name', this.getUniqueCuisineName(cuisine));
     }
 
+    /**
+     * Adds a new cuisine to Graph if a cuisine with the specified name does not already exist.
+     * @param cuisine - The cuisine specified by the user
+     * @param matchingRecipes - The recipes that match the specified cuisine
+     * @param userVertex - The existing Graph vertex for the user
+     * @returns {Promise.<TResult>}
+     */
     addCuisine(cuisine, matchingRecipes, userVertex) {
         var cuisineVertex = {label: 'cuisine'};
         cuisineVertex['name'] = this.getUniqueCuisineName(cuisine);
         cuisineVertex['detail'] = JSON.stringify(matchingRecipes).replace(/'/g, '\\\'');
         return this.addVertexIfNotExists(cuisineVertex, 'name')
             .then((vertex) => {
-                return this.incrementCuisineForUser(vertex, userVertex)
+                return this.recordCuisineRequestForUser(vertex, userVertex)
                     .then(() => {
                         return Promise.resolve(vertex);
                     });
             });
     }
 
-    incrementCuisineForUser(cuisineVertex, userVertex) {
+    /**
+     * Creates or updates an edge between the specified user and cuisine.
+     * Stores the number of times the cuisine has been accessed by the user in the edge.
+     * @param cuisineVertex - The existing Graph vertex for the cuisine
+     * @param userVertex - The existing Graph vertex for the user
+     * @returns {Promise.<TResult>}
+     */
+    recordCuisineRequestForUser(cuisineVertex, userVertex) {
         var edge = {
             label: 'selects',
             outV: userVertex.id,
@@ -148,14 +209,30 @@ class GraphRecipeStore {
 
     // Recipe
 
+    /**
+     * Gets the unique name for the recipe to be stored in Graph.
+     * @param recipeId - The ID of the recipe (typically the ID of the recipe returned from Spoonacular)
+     * @returns {string}
+     */
     getUniqueRecipeName(recipeId) {
         return `${recipeId}`.trim().toLowerCase();
     }
 
+    /**
+     * Finds the recipe with the specified ID in Graph.
+     * @param recipeId - The ID of the recipe (typically the ID of the recipe returned from Spoonacular)
+     * @returns {Promise.<TResult>}
+     */
     findRecipe(recipeId) {
         return this.findVertex('recipe', 'name', this.getUniqueRecipeName(recipeId));
     }
 
+    /**
+     * Finds the user's favorite recipes in Graph.
+     * @param userVertex - The existing Graph vertex for the user
+     * @param count - The max number of recipes to return
+     * @returns {Promise.<TResult>}
+     */
     findFavoriteRecipesForUser(userVertex, count) {
         return new Promise((resolve, reject) => {
             var query = `g.V().hasLabel("person").has("name", "${userVertex.properties['name'][0]['value']}").outE().inV().hasLabel("recipe").path()`;
@@ -199,6 +276,15 @@ class GraphRecipeStore {
         });
     }
 
+    /**
+     * Adds a new recipe to Graph if a recipe with the specified name does not already exist.
+     * @param recipeId - The ID of the recipe (typically the ID of the recipe returned from Spoonacular)
+     * @param recipeTitle - The title of the recipe
+     * @param recipeDetail - The detailed instructions for making the recipe
+     * @param ingredientCuisineVertex - The existing Graph vertex for either the ingredient or cuisine selected before the recipe
+     * @param userVertex - The existing Graph vertex for the user
+     * @returns {Promise.<TResult>}
+     */
     addRecipe(recipeId, recipeTitle, recipeDetail, ingredientCuisineVertex, userVertex) {
         var recipeVertex = {label: 'recipe'};
         recipeVertex['name'] = this.getUniqueRecipeName(recipeId);
@@ -208,14 +294,24 @@ class GraphRecipeStore {
             .then((vertex) => {
                 // add one edge from the ingredient/cuisine to the recipe
                 recipeVertex = vertex;
-                return this.incrementRecipeForUser(recipeVertex, ingredientCuisineVertex, userVertex);
+                return this.recordRecipeRequestForUser(recipeVertex, ingredientCuisineVertex, userVertex);
             })
             .then(() => {
                 return Promise.resolve(recipeVertex);
             });
     }
 
-    incrementRecipeForUser(recipeVertex, ingredientCuisineVertex, userVertex) {
+    /**
+     * Creates or updates an edge between the specified user and recipe.
+     * Stores the number of times the recipe has been accessed by the user in the edge.
+     * Creates or updates an edge between the specified ingredient/cuisine (if not None) and recipe.
+     * Stores the number of times the recipe has been accessed by the ingredient/cuisine in the edge.
+     * @param recipeVertex - The existing Graph vertex for the recipe
+     * @param ingredientCuisineVertex - The existing Graph vertex for either the ingredient or cuisine selected before the recipe
+     * @param userVertex - The existing Graph vertex for the user
+     * @returns {Promise.<TResult>}
+     */
+    recordRecipeRequestForUser(recipeVertex, ingredientCuisineVertex, userVertex) {
         // add one edge from the user to the recipe (this will let us find a user's favorite recipes, etc)
         var edge = {
             label: 'selects',
@@ -243,6 +339,13 @@ class GraphRecipeStore {
 
     // Graph Helper Methods
 
+    /**
+     * Finds a vertex based on the specified label, propertyName, and propertyValue.
+     * @param label - The label value of the vertex stored in Graph
+     * @param propertyName - The property name to search for
+     * @param propertyValue - The value that should match for the specified property name
+     * @returns {Promise.<TResult>}
+     */
     findVertex(label, propertyName, propertyValue) {
         return new Promise((resolve, reject) => {
             var query = `g.V().hasLabel("${label}").has("${propertyName}", "${propertyValue}")`;
@@ -261,6 +364,12 @@ class GraphRecipeStore {
         });
     }
 
+    /**
+     * Adds a new vertex to Graph if a vertex with the same value for uniquePropertyName does not exist.
+     * @param doc - The vertex to add
+     * @param uniquePropertyName - The name of the property used to search for an existing vertex (the value will be extracted from the vertex provided)
+     * @returns {Promise.<TResult>}
+     */
     addVertexIfNotExists(vertex, uniquePropertyName) {
         return new Promise((resolve, reject) => {
             var propertyValue = `${vertex[uniquePropertyName]}`;
@@ -289,6 +398,12 @@ class GraphRecipeStore {
         });
     }
 
+    /**
+     * Adds a new edge to Graph if an edge with the same out_v and in_v does not exist.
+     * Increments the count property on the edge.
+     * @param edge - The edge to add
+     * @returns {Promise}
+     */
     addUpdateEdge(edge) {
         return new Promise((resolve, reject) => {
             var query = `g.V(${edge.outV}).outE().inV().hasId(${edge.inV}).path()`;
