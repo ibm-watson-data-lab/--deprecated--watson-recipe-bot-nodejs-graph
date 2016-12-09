@@ -4,7 +4,7 @@ class GraphRecipeStore {
 
     /**
      * Creates a new instance of GraphRecipeStore.
-     * @param {Object} graphClient - The instance of the IBM Graph client to use
+     * @param {Object} graphClient - The instance of the IBM Graph Client to use
      */
     constructor(graphClient) {
         this.graphClient = graphClient; // Note: this library cannot be promisified using promisifyAll
@@ -366,7 +366,7 @@ class GraphRecipeStore {
 
     /**
      * Adds a new vertex to Graph if a vertex with the same value for uniquePropertyName does not exist.
-     * @param doc - The vertex to add
+     * @param vertex - The vertex to add
      * @param uniquePropertyName - The name of the property used to search for an existing vertex (the value will be extracted from the vertex provided)
      * @returns {Promise.<TResult>}
      */
