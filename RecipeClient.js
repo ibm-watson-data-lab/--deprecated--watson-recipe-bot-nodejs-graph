@@ -1,7 +1,7 @@
 'use strict';
 
-var https = require('https');
-var host = 'spoonacular-recipe-food-nutrition-v1.p.mashape.com';
+const https = require('https');
+const host = 'spoonacular-recipe-food-nutrition-v1.p.mashape.com';
 
 class RecipeClient {
 
@@ -11,8 +11,8 @@ class RecipeClient {
 
     findByIngredients(ingredients) {
         return new Promise((resolve, reject) => {
-            var queryStr = `?fillIngredients=false&ingredients=${ingredients}&limitLicense=false&number=5&ranking=1`;
-            var options = {
+            let queryStr = `?fillIngredients=false&ingredients=${ingredients}&limitLicense=false&number=5&ranking=1`;
+            let options = {
                 hostname: host,
                 port: 443,
                 path: `/recipes/findByIngredients${queryStr}`,
@@ -22,8 +22,8 @@ class RecipeClient {
                     'Accept': 'application/json'
                 }
             };
-            var req = https.get(options, (res) => {
-                var json = null;
+            let req = https.get(options, (res) => {
+                let json = null;
                 res.on('data', function (chunk) {
                     if (json == null) {
                         json = '';
@@ -47,8 +47,8 @@ class RecipeClient {
 
     findByCuisine(cuisine) {
         return new Promise((resolve, reject) => {
-            var queryStr = `?number=5&query=+&cuisine=${cuisine}`;
-            var options = {
+            let queryStr = `?number=5&query=+&cuisine=${cuisine}`;
+            let options = {
                 hostname: host,
                 port: 443,
                 path: `/recipes/search${queryStr}`,
@@ -58,8 +58,8 @@ class RecipeClient {
                     'Accept': 'application/json'
                 }
             };
-            var req = https.get(options, (res) => {
-                var json = null;
+            let req = https.get(options, (res) => {
+                let json = null;
                 res.on('data', function (chunk) {
                     if (json == null) {
                         json = '';
@@ -83,8 +83,8 @@ class RecipeClient {
 
     getInfoById(id) {
         return new Promise((resolve, reject) => {
-            var queryStr = `?includeNutrition=false`;
-            var options = {
+            let queryStr = `?includeNutrition=false`;
+            let options = {
                 hostname: host,
                 port: 443,
                 path: `/recipes/${id}/information${queryStr}`,
@@ -94,8 +94,8 @@ class RecipeClient {
                     'Accept': 'application/json'
                 }
             };
-            var req = https.get(options, (res) => {
-                var json = null;
+            let req = https.get(options, (res) => {
+                let json = null;
                 res.on('data', function (chunk) {
                     if (json == null) {
                         json = '';
@@ -119,7 +119,7 @@ class RecipeClient {
 
     getStepsById(id) {
         return new Promise((resolve, reject) => {
-            var options = {
+            let options = {
                 hostname: host,
                 port: 443,
                 path: `/recipes/${id}/analyzedInstructions`,
@@ -129,8 +129,8 @@ class RecipeClient {
                     'Accept': 'application/json'
                 }
             };
-            var req = https.get(options, (res) => {
-                var json = null;
+            let req = https.get(options, (res) => {
+                let json = null;
                 res.on('data', function (chunk) {
                     if (json == null) {
                         json = '';

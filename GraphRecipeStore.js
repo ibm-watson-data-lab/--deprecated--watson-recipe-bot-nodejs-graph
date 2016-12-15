@@ -25,11 +25,11 @@ class GraphRecipeStore {
                         reject(error);
                     }
                     else {
-                        var schema;
+                        let schema;
                         if (body.result && body.result.data && body.result.data.length > 0) {
                             schema = body.result.data[0];
                         }
-                        var schemaExists = (schema && schema.propertyKeys && schema.propertyKeys.length > 0);
+                        let schemaExists = (schema && schema.propertyKeys && schema.propertyKeys.length > 0);
                         if (!schemaExists) {
                             schema = {
                                 propertyKeys: [
@@ -80,7 +80,7 @@ class GraphRecipeStore {
      * @returns {Promise.<TResult>}
      */
     addUser(userId) {
-        var userVertex = {label: 'person'};
+        let userVertex = {label: 'person'};
         userVertex['name'] = userId;
         return this.addVertexIfNotExists(userVertex, 'name')
             .then((vertex) => {
@@ -96,8 +96,8 @@ class GraphRecipeStore {
      * @returns {string}
      */
     getUniqueIngredientsName(ingredientsStr) {
-        var ingredients = ingredientsStr.trim().toLowerCase().split(',');
-        for (var i = 0; i < ingredients.length; i++) {
+        let ingredients = ingredientsStr.trim().toLowerCase().split(',');
+        for (let i = 0; i < ingredients.length; i++) {
             ingredients[i] = ingredients[i].trim();
         }
         ingredients.sort();
@@ -121,7 +121,7 @@ class GraphRecipeStore {
      * @returns {Promise.<TResult>}
      */
     addIngredient(ingredientsStr, matchingRecipes, userVertex) {
-        var ingredientVertex = {label: 'ingredient'};
+        let ingredientVertex = {label: 'ingredient'};
         ingredientVertex['name'] = this.getUniqueIngredientsName(ingredientsStr);
         ingredientVertex['detail'] = JSON.stringify(matchingRecipes).replace(/'/g, '\\\'');
         return this.addVertexIfNotExists(ingredientVertex, 'name')
@@ -141,7 +141,7 @@ class GraphRecipeStore {
      * @returns {Promise.<TResult>}
      */
     recordIngredientRequestForUser(ingredientVertex, userVertex) {
-        var edge = {
+        let edge = {
             label: 'selects',
             outV: userVertex.id,
             inV: ingredientVertex.id,
@@ -178,7 +178,7 @@ class GraphRecipeStore {
      * @returns {Promise.<TResult>}
      */
     addCuisine(cuisine, matchingRecipes, userVertex) {
-        var cuisineVertex = {label: 'cuisine'};
+        let cuisineVertex = {label: 'cuisine'};
         cuisineVertex['name'] = this.getUniqueCuisineName(cuisine);
         cuisineVertex['detail'] = JSON.stringify(matchingRecipes).replace(/'/g, '\\\'');
         return this.addVertexIfNotExists(cuisineVertex, 'name')
@@ -198,7 +198,7 @@ class GraphRecipeStore {
      * @returns {Promise.<TResult>}
      */
     recordCuisineRequestForUser(cuisineVertex, userVertex) {
-        var edge = {
+        let edge = {
             label: 'selects',
             outV: userVertex.id,
             inV: cuisineVertex.id,
@@ -235,18 +235,18 @@ class GraphRecipeStore {
      */
     findFavoriteRecipesForUser(userVertex, count) {
         return new Promise((resolve, reject) => {
-            var query = `g.V().hasLabel("person").has("name", "${userVertex.properties['name'][0]['value']}").outE().inV().hasLabel("recipe").path()`;
+            let query = `g.V().hasLabel("person").has("name", "${userVertex.properties['name'][0]['value']}").outE().inV().hasLabel("recipe").path()`;
             this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
                 if (error) {
                     console.log(`Error finding Vertexes: ${error}`);
                     reject(error);
                 }
                 else if (response.result && response.result.data && response.result.data.length > 0) {
-                    var recipes = [];
-                    var paths = response.result.data;
+                    let recipes = [];
+                    let paths = response.result.data;
                     paths.sort((path1, path2) => {
-                        var count1 = 1;
-                        var count2 = 1;
+                        let count1 = 1;
+                        let count2 = 1;
                         if (path1.objects[1].properties.count) {
                             count1 = path1.objects[1].properties.count;
                         }
@@ -255,13 +255,13 @@ class GraphRecipeStore {
                         }
                         return count2 - count1; // reverse sort
                     });
-                    var i = -1;
-                    for (var path of paths) {
+                    let i = -1;
+                    for (let path of paths) {
                         i++;
                         if (i >= count) {
                             break;
                         }
-                        var recipe = {
+                        let recipe = {
                             id: path.objects[2].properties.name[0].value,
                             title: path.objects[2].properties.title[0].value,
                         }
@@ -286,7 +286,7 @@ class GraphRecipeStore {
      * @returns {Promise.<TResult>}
      */
     addRecipe(recipeId, recipeTitle, recipeDetail, ingredientCuisineVertex, userVertex) {
-        var recipeVertex = {label: 'recipe'};
+        let recipeVertex = {label: 'recipe'};
         recipeVertex['name'] = this.getUniqueRecipeName(recipeId);
         recipeVertex['title'] = recipeTitle.trim().replace(/'/g, '\\\'');
         recipeVertex['detail'] = recipeDetail.replace(/'/g, '\\\'').replace(/\n/g, '\\\\n');
@@ -313,7 +313,7 @@ class GraphRecipeStore {
      */
     recordRecipeRequestForUser(recipeVertex, ingredientCuisineVertex, userVertex) {
         // add one edge from the user to the recipe (this will let us find a user's favorite recipes, etc)
-        var edge = {
+        let edge = {
             label: 'selects',
             outV: userVertex.id,
             inV: recipeVertex.id,
@@ -323,7 +323,7 @@ class GraphRecipeStore {
             .then(() => {
                 if (ingredientCuisineVertex) {
                     // add one edge from the ingredient/cuisine to the recipe
-                    var edge = {
+                    let edge = {
                         label: 'selects',
                         outV: ingredientCuisineVertex.id,
                         inV: recipeVertex.id,
@@ -348,7 +348,7 @@ class GraphRecipeStore {
      */
     findVertex(label, propertyName, propertyValue) {
         return new Promise((resolve, reject) => {
-            var query = `g.V().hasLabel("${label}").has("${propertyName}", "${propertyValue}")`;
+            let query = `g.V().hasLabel("${label}").has("${propertyName}", "${propertyValue}")`;
             this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
                 if (error) {
                     console.log(`Error finding Vertex: ${error}`);
@@ -372,8 +372,8 @@ class GraphRecipeStore {
      */
     addVertexIfNotExists(vertex, uniquePropertyName) {
         return new Promise((resolve, reject) => {
-            var propertyValue = `${vertex[uniquePropertyName]}`;
-            var query = `g.V().hasLabel("${vertex.label}").has("${uniquePropertyName}", "${propertyValue}")`;
+            let propertyValue = `${vertex[uniquePropertyName]}`;
+            let query = `g.V().hasLabel("${vertex.label}").has("${uniquePropertyName}", "${propertyValue}")`;
             this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
                 if (error) {
                     console.log(`Error finding Vertex: ${error}`);
@@ -406,7 +406,7 @@ class GraphRecipeStore {
      */
     addUpdateEdge(edge) {
         return new Promise((resolve, reject) => {
-            var query = `g.V(${edge.outV}).outE().inV().hasId(${edge.inV}).path()`;
+            let query = `g.V(${edge.outV}).outE().inV().hasId(${edge.inV}).path()`;
             this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
                 if (error) {
                     console.log(`Error finding Edge: ${error}`);
@@ -415,7 +415,7 @@ class GraphRecipeStore {
                 else if (response.result && response.result.data && response.result.data.length > 0) {
                     console.log(`Edge from ${edge.outV} to ${edge.inV} exists.`);
                     edge = response.result.data[0].objects[1];
-                    var count = 0;
+                    let count = 0;
                     if (!edge.properties) {
                         edge.properties = {};
                     }
