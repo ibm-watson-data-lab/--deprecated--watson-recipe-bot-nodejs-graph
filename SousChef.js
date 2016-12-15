@@ -6,7 +6,7 @@ const SlackBot = require('slackbots');
 
 class SousChef {
 
-    constructor(recipeStore, slackToken, recipeClientApiKey, conversationUsername, conversationPassword, conversationWorkspaceId) {
+    constructor(recipeStore, slackToken, recipeClientApiKey, conversationUsername, conversationPassword, conversationWorkspaceId, snsClient) {
         this.userStateMap = {};
         this.recipeStore = recipeStore;
         this.recipeClient = new RecipeClient(recipeClientApiKey);
@@ -17,6 +17,7 @@ class SousChef {
             version_date: '2016-07-01'
         });
         this.conversationWorkspaceId = conversationWorkspaceId;
+        this.snsClient = snsClient;
     }
 
     run() {
@@ -27,6 +28,7 @@ class SousChef {
                     name: 'souschef'
                 });
                 this.slackBot.on('start', () => {
+                    console.log('sous-chef is connected and running!');
                 });
                 this.slackBot.on('message', (data) => {
                     if (data.type == 'message' && data.channel.startsWith('D')) {
@@ -112,20 +114,29 @@ class SousChef {
             reply += response.output['text'][i] + '\n';
         }
         if (state.user) {
+            this.sendStartMessageToSns(state);
             return Promise.resolve(reply);
         }
         else {
             return this.recipeStore.addUser(state.userId)
                 .then((user) => {
                     state.user = user;
+                    this.sendStartMessageToSns(state);
                     return Promise.resolve(reply);
                 });
         }
     }
 
+    sendStartMessageToSns(state) {
+        if (! state.conversationStarted) {
+            state.conversation_started = true;
+            this.snsClient.postStartMessage(state);
+        }
+    }
+
     handleFavoritesMessage(state) {
         return this.recipeStore.findFavoriteRecipesForUser(state.user, 5)
-            .then(function (recipes) {
+            .then((recipes) => {
                 // update state
                 state.conversationContext['recipes'] = recipes;
                 state.ingredientCuisine = null;
@@ -135,6 +146,9 @@ class SousChef {
                     response += `${(i + 1)}.${recipes[i].title}\n`;
                 }
                 response += '\nPlease enter the corresponding number of your choice.';
+                // post to sns
+                this.snsClient.postFavoritesMessage(state);
+                // return response
                 return Promise.resolve(response);
             });
     }
@@ -174,6 +188,9 @@ class SousChef {
                     response += `${(i + 1)}.${matchingRecipes[i].title}\n`;
                 }
                 response += '\nPlease enter the corresponding number of your choice.';
+                // post to sns
+                this.snsClient.postIngredientMessage(state, ingredientsStr);
+                // return response
                 return Promise.resolve(response);
             });
     }
@@ -213,6 +230,9 @@ class SousChef {
                     response += `${(i + 1)}.${matchingRecipes[i].title}\n`;
                 }
                 response += '\nPlease enter the corresponding number of your choice.';
+                // post to sns
+                this.snsClient.postCuisineMessage(state, cuisineStr);
+                // return response
                 return Promise.resolve(response);
             });
     }
@@ -251,9 +271,14 @@ class SousChef {
                     }
                 })
                 .then((recipe) => {
+                    let recipeDetail = recipe.properties.detail[0].value.replace(/\\n/g, '\n');
+                    // post to sns
+                    this.snsClient.postRecipeMessage(state, recipeId, recipe.properties['title'][0].value);
+                    // clear out state
                     state.ingredientCuisine = null;
                     state.conversationContext = null;
-                    let recipeDetail = recipe.properties.detail[0].value.replace(/\\n/g, '\n');
+                    state.conversationStarted = false;
+                    // return response
                     return Promise.resolve(recipeDetail);
                 });
         }

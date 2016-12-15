@@ -65,8 +65,7 @@ class GraphRecipeStore {
                             console.log('Graph Schema exists.');
                             resolve(schema);
                         }
-                    }
-                    ;
+                    };
                 });
             });
         });

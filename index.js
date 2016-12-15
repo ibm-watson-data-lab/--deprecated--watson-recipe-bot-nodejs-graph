@@ -3,6 +3,7 @@
 const dotenv = require('dotenv');
 const GDS = require('ibm-graph-client');
 const GraphRecipeStore = require('./GraphRecipeStore');
+const SnsClient = require('./SnsClient');
 const SousChef = require('./SousChef');
 
 // load from .env
@@ -25,12 +26,18 @@ let graphClient = new GDS({
 	password: process.env.GRAPH_PASSWORD || config.credentials.password,
 });
 
+const snsClient = new SnsClient(
+    process.env.SNS_API_URL,
+	process.env.SNS_API_KEY
+);
+
 const sousChef = new SousChef(
 	new GraphRecipeStore(graphClient),
 	process.env.SLACK_BOT_TOKEN,
 	process.env.SPOONACULAR_KEY,
 	process.env.CONVERSATION_USERNAME,
 	process.env.CONVERSATION_PASSWORD,
-	process.env.CONVERSATION_WORKSPACE_ID
+	process.env.CONVERSATION_WORKSPACE_ID,
+    snsClient
 );
 sousChef.run();
