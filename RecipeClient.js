@@ -139,7 +139,13 @@ class RecipeClient {
                 });
                 res.on('end', function () {
                     if (res.statusCode >= 200 && res.statusCode < 300) {
-                        resolve(JSON.parse(json)[0].steps);
+                        try {
+                            let steps = JSON.parse(json)[0].steps;
+                            resolve(steps);
+                        }
+                        catch (err) {
+                            resolve([]);
+                        }
                     }
                     else {
                         reject(res.statusCode);
