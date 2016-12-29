@@ -218,7 +218,7 @@ class SousChef {
             });
     }
 
-    handleSelectionMessage(state, selection) {
+    handleSelectionMessage(state) {
         let selection = -1;
         if (state.conversationContext['selection']) {
             selection = parseInt(state.conversationContext['selection']);

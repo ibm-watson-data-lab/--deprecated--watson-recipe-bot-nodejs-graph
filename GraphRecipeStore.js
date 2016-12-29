@@ -234,7 +234,7 @@ class GraphRecipeStore {
      */
     findFavoriteRecipesForUser(userVertex, count) {
         return new Promise((resolve, reject) => {
-            let query = `g.V().hasLabel("person").has("name", "${userVertex.properties['name'][0]['value']}").outE().inV().hasLabel("recipe").path()`;
+            let query = `g.V().hasLabel("person").has("name", "${userVertex.properties['name'][0]['value']}").outE().order().by("count", decr).inV().hasLabel("recipe").limit(${count}).path()`;
             this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
                 if (error) {
                     console.log(`Error finding Vertexes: ${error}`);
@@ -243,23 +243,7 @@ class GraphRecipeStore {
                 else if (response.result && response.result.data && response.result.data.length > 0) {
                     let recipes = [];
                     let paths = response.result.data;
-                    paths.sort((path1, path2) => {
-                        let count1 = 1;
-                        let count2 = 1;
-                        if (path1.objects[1].properties.count) {
-                            count1 = path1.objects[1].properties.count;
-                        }
-                        if (path2.objects[1].properties.count) {
-                            count2 = path2.objects[1].properties.count;
-                        }
-                        return count2 - count1; // reverse sort
-                    });
-                    let i = -1;
                     for (let path of paths) {
-                        i++;
-                        if (i >= count) {
-                            break;
-                        }
                         let recipe = {
                             id: path.objects[2].properties.name[0].value,
                             title: path.objects[2].properties.title[0].value,
