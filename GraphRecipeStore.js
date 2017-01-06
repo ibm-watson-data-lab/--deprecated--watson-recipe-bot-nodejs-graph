@@ -5,70 +5,118 @@ class GraphRecipeStore {
     /**
      * Creates a new instance of GraphRecipeStore.
      * @param {Object} graphClient - The instance of the IBM Graph Client to use
+     * @param {String} graphId - The id of the graph to use
      */
-    constructor(graphClient) {
+    constructor(graphClient, graphId) {
         this.graphClient = graphClient; // Note: this library cannot be promisified using promisifyAll
+        this.graphId = graphId;
     }
 
     /**
-     * Creates and initializes the Graph schema.
+     * Creates and initializes the Graph and Graph schema.
      * @returns {Promise.<TResult>}
      */
     init() {
-        // Set Schema
-        console.log('Getting Graph Schema...');
         return new Promise((resolve, reject) => {
             this.graphClient.session((error, token) => {
                 this.graphClient.config.session = token;
-                this.graphClient.schema().get(function (error, body) {
-                    if (error) {
-                        reject(error);
-                    }
-                    else {
-                        let schema;
-                        if (body.result && body.result.data && body.result.data.length > 0) {
-                            schema = body.result.data[0];
-                        }
-                        let schemaExists = (schema && schema.propertyKeys && schema.propertyKeys.length > 0);
-                        if (!schemaExists) {
-                            schema = {
-                                propertyKeys: [
-                                    {name: 'name', dataType: 'String', cardinality: 'SINGLE'},
-                                    {name: 'title', dataType: 'String', cardinality: 'SINGLE'},
-                                    {name: 'detail', dataType: 'String', cardinality: 'SINGLE'}
-                                ],
-                                vertexLabels: [
-                                    {name: 'person'},
-                                    {name: 'ingredient'},
-                                    {name: 'cuisine'},
-                                    {name: 'recipe'}
-                                ],
-                                edgeLabels: [
-                                    {name: 'selects'}
-                                ],
-                                vertexIndexes: [
-                                    {name: 'vertexByName', propertyKeys: ['name'], composite: true, unique: true}
-                                ],
-                                edgeIndexes: []
-                            };
-                            console.log('Creating Graph Schema...');
-                            this.graphClient.schema().set(schema, (error, body) => {
-                                if (error) {
-                                    reject(error);
-                                }
-                                else {
-                                    resolve(schema);
-                                }
-                            });
-                        }
-                        else {
-                            console.log('Graph Schema exists.');
-                            resolve(schema);
-                        }
-                    };
-                });
+                this.initGraph()
+                    .then(() => {
+                        return this.initGraphSchema();
+                    })
+                    .then(() => {
+                        resolve();
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
             });
         });
+    }
+
+    initGraph() {
+        return new Promise((resolve, reject) => {
+            this.graphClient.graphs().get((err, graphIds) => {
+                let graphExists = (graphIds.indexOf(this.graphId) >= 0);
+                if (graphExists) {
+                    this.updateGraphUrl();
+                    resolve();
+                }
+                else {
+                    this.graphClient.graphs().create(this.graphId, (err, response) => {
+                        if (err) {
+                            reject(err);
+                        }
+                        else {
+                            this.updateGraphUrl();
+                            resolve();
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    updateGraphUrl() {
+        let url = this.graphClient.config.url;
+        this.graphClient.config.url = url.substring(0,url.lastIndexOf('/')+1) + this.graphId
+    }
+
+    initGraphSchema() {
+        return new Promise((resolve, reject) => {
+            // Set the schema
+            console.log('Getting graph schema...');
+            this.graphClient.schema().get((error, body) => {
+                if (error) {
+                    reject(error);
+                }
+                else {
+                    let schema;
+                    if (body.result && body.result.data && body.result.data.length > 0) {
+                        schema = body.result.data[0];
+                    }
+                    let schemaExists = (schema && schema.propertyKeys && schema.propertyKeys.length > 0);
+                    if (!schemaExists) {
+                        console.log('Creating graph schema...');
+                        this.graphClient.schema().set(this.getGraphSchema(), (error, body) => {
+                            if (error) {
+                                reject(error);
+                            }
+                            else {
+                                resolve(schema);
+                            }
+                        });
+                    }
+                    else {
+                        console.log('Graph schema exists.');
+                        resolve(schema);
+                    }
+                };
+            });
+        });
+    }
+
+    getGraphSchema() {
+        return {
+            propertyKeys: [
+                {name: 'name', dataType: 'String', cardinality: 'SINGLE'},
+                {name: 'title', dataType: 'String', cardinality: 'SINGLE'},
+                {name: 'detail', dataType: 'String', cardinality: 'SINGLE'}
+            ],
+            vertexLabels: [
+                {name: 'person'},
+                {name: 'ingredient'},
+                {name: 'cuisine'},
+                {name: 'recipe'}
+            ],
+            edgeLabels: [
+                {name: 'selects'}
+            ],
+            vertexIndexes: [
+                {name: 'vertexByName', propertyKeys: ['name'], composite: true, unique: true}
+            ],
+            edgeIndexes: []
+        };
     }
 
     // User

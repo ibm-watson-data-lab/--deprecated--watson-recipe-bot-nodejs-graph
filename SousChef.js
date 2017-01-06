@@ -128,7 +128,7 @@ class SousChef {
 
     sendStartMessageToSns(state) {
         if (! state.conversationStarted) {
-            state.conversation_started = true;
+            state.conversationStarted = true;
             this.snsClient.postStartMessage(state);
         }
     }

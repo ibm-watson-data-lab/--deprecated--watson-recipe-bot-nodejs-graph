@@ -104,7 +104,6 @@ class SnsClient {
         });
         req.on('error', (e) => {
             console.log("Error posting message: " + e);
-            callback(e);
         });
         req.write(postData);
         req.end();

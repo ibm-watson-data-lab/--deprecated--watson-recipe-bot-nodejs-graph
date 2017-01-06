@@ -32,7 +32,7 @@ const snsClient = new SnsClient(
 );
 
 const sousChef = new SousChef(
-	new GraphRecipeStore(graphClient),
+	new GraphRecipeStore(graphClient, process.env.GRAPH_ID),
 	process.env.SLACK_BOT_TOKEN,
 	process.env.SPOONACULAR_KEY,
 	process.env.CONVERSATION_USERNAME,
