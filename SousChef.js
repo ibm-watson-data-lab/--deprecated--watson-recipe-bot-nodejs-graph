@@ -1,12 +1,12 @@
 'use strict';
 
-var ConversationV1 = require('watson-developer-cloud/conversation/v1');
-var RecipeClient = require('./RecipeClient');
-var SlackBot = require('slackbots');
+const ConversationV1 = require('watson-developer-cloud/conversation/v1');
+const RecipeClient = require('./RecipeClient');
+const SlackBot = require('slackbots');
 
 class SousChef {
 
-    constructor(recipeStore, slackToken, recipeClientApiKey, conversationUsername, conversationPassword, conversationWorkspaceId) {
+    constructor(recipeStore, slackToken, recipeClientApiKey, conversationUsername, conversationPassword, conversationWorkspaceId, snsClient) {
         this.userStateMap = {};
         this.recipeStore = recipeStore;
         this.recipeClient = new RecipeClient(recipeClientApiKey);
@@ -17,6 +17,7 @@ class SousChef {
             version_date: '2016-07-01'
         });
         this.conversationWorkspaceId = conversationWorkspaceId;
+        this.snsClient = snsClient;
     }
 
     run() {
@@ -27,11 +28,12 @@ class SousChef {
                     name: 'souschef'
                 });
                 this.slackBot.on('start', () => {
+                    console.log('sous-chef is connected and running!');
                 });
                 this.slackBot.on('message', (data) => {
                     if (data.type == 'message' && data.channel.startsWith('D')) {
                         if (!data.bot_id) {
-                            this.processSlackMessage(data);
+                            this.processMessage(data);
                         }
                         else {
                             // ignore messages from the bot (messages we sent)
@@ -45,11 +47,11 @@ class SousChef {
             });
     }
 
-    processSlackMessage(data) {
+    processMessage(data) {
         // get or create state for the user
-        var message = data.text;
-        var messageSender = data.user;
-        var state = this.userStateMap[messageSender];
+        let message = data.text;
+        let messageSender = data.user;
+        let state = this.userStateMap[messageSender];
         if (!state) {
             state = {
                 userId: messageSender
@@ -57,7 +59,7 @@ class SousChef {
             this.userStateMap[messageSender] = state;
         }
         // make call to conversation service
-        var request = {
+        let request = {
             input: {text: data.text},
             context: state.conversationContext,
             workspace_id: this.conversationWorkspaceId,
@@ -75,11 +77,7 @@ class SousChef {
                     return this.handleCuisineMessage(state, response.entities[0].value);
                 }
                 else if (state.conversationContext['is_selection']) {
-                    var selection = -1;
-                    if (state.conversationContext['selection']) {
-                        selection = parseInt(state.conversationContext['selection']);
-                    }
-                    return this.handleSelectionMessage(state, selection);
+                    return this.handleSelectionMessage(state);
                 }
                 else {
                     return this.handleStartMessage(state, response);
@@ -88,8 +86,11 @@ class SousChef {
             .then((reply) => {
                 this.slackBot.postMessage(data.channel, reply, {});
             })
-            .catch((error) => {
-                console.log(`Error: ${error}`);
+            .catch((err) => {
+                console.log(`Error: ${err}`);
+                this.clearUserState(state);
+                const reply = "Sorry, something went wrong! Say anything to me to start over...";
+                this.slackBot.postMessage(data.channel, reply, {});
             });
     }
 
@@ -107,34 +108,40 @@ class SousChef {
     }
 
     handleStartMessage(state, response) {
-        var reply = '';
-        for (var i = 0; i < response.output['text'].length; i++) {
+        let reply = '';
+        for (let i = 0; i < response.output['text'].length; i++) {
             reply += response.output['text'][i] + '\n';
         }
         if (state.user) {
+            this.sendStartMessageToSns(state);
             return Promise.resolve(reply);
         }
         else {
             return this.recipeStore.addUser(state.userId)
                 .then((user) => {
                     state.user = user;
+                    this.sendStartMessageToSns(state);
                     return Promise.resolve(reply);
                 });
         }
     }
 
+    sendStartMessageToSns(state) {
+        if (! state.conversationStarted) {
+            state.conversationStarted = true;
+            this.snsClient.postStartMessage(state);
+        }
+    }
+
     handleFavoritesMessage(state) {
         return this.recipeStore.findFavoriteRecipesForUser(state.user, 5)
-            .then(function (recipes) {
+            .then((recipes) => {
                 // update state
                 state.conversationContext['recipes'] = recipes;
                 state.ingredientCuisine = null;
-                // return the response
-                var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
-                for (var i = 0; i < recipes.length; i++) {
-                    response += `${(i + 1)}.${recipes[i].title}\n`;
-                }
-                response += '\nPlease enter the corresponding number of your choice.';
+                // post to sns and return response
+                this.snsClient.postFavoritesMessage(state);
+                const response = this.getRecipeListResponse(recipes);
                 return Promise.resolve(response);
             });
     }
@@ -142,7 +149,7 @@ class SousChef {
     handleIngredientsMessage(state, message) {
         // we want to get a list of recipes based on the ingredients (message)
         // first we see if we already have the ingredients in our datastore
-        var ingredientsStr = message;
+        let ingredientsStr = message;
         return this.recipeStore.findIngredient(ingredientsStr)
             .then((ingredient) => {
                 if (ingredient) {
@@ -164,16 +171,13 @@ class SousChef {
                 }
             })
             .then((ingredient) => {
-                var matchingRecipes = JSON.parse(ingredient.properties.detail[0].value);
+                let matchingRecipes = JSON.parse(ingredient.properties.detail[0].value);
                 // update state
                 state.conversationContext['recipes'] = matchingRecipes;
                 state.ingredientCuisine = ingredient;
-                // return the response
-                var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
-                for (var i = 0; i < matchingRecipes.length; i++) {
-                    response += `${(i + 1)}.${matchingRecipes[i].title}\n`;
-                }
-                response += '\nPlease enter the corresponding number of your choice.';
+                // post to sns and return response
+                this.snsClient.postIngredientMessage(state, ingredientsStr);
+                const response = this.getRecipeListResponse(matchingRecipes);
                 return Promise.resolve(response);
             });
     }
@@ -181,7 +185,7 @@ class SousChef {
     handleCuisineMessage(state, message) {
         // we want to get a list of recipes based on the cuisine (message)
         // first we see if we already have the cuisines in our datastore
-        var cuisineStr = message;
+        let cuisineStr = message;
         return this.recipeStore.findCuisine(cuisineStr)
             .then((cuisine) => {
                 if (cuisine) {
@@ -203,26 +207,27 @@ class SousChef {
                 }
             })
             .then((cuisine) => {
-                var matchingRecipes = JSON.parse(cuisine.properties.detail[0].value);
+                let matchingRecipes = JSON.parse(cuisine.properties.detail[0].value);
                 // update state
                 state.conversationContext['recipes'] = matchingRecipes;
                 state.ingredientCuisine = cuisine;
-                // return the response
-                var response = 'Let\'s see here...\nI\'ve found these recipes: \n';
-                for (var i = 0; i < matchingRecipes.length; i++) {
-                    response += `${(i + 1)}.${matchingRecipes[i].title}\n`;
-                }
-                response += '\nPlease enter the corresponding number of your choice.';
+                // post to sns and return response
+                this.snsClient.postCuisineMessage(state, cuisineStr);
+                const response = this.getRecipeListResponse(matchingRecipes);
                 return Promise.resolve(response);
             });
     }
 
-    handleSelectionMessage(state, selection) {
+    handleSelectionMessage(state) {
+        let selection = -1;
+        if (state.conversationContext['selection']) {
+            selection = parseInt(state.conversationContext['selection']);
+        }
         if (selection >= 1 && selection <= 5) {
             // we want to get a the recipe based on the selection
             // first we see if we already have the recipe in our datastore
-            var recipes = state.conversationContext['recipes'];
-            var recipeId = `${recipes[selection - 1]["id"]}`;
+            let recipes = state.conversationContext['recipes'];
+            let recipeId = `${recipes[selection - 1]["id"]}`;
             return this.recipeStore.findRecipe(recipeId)
                 .then((recipe) => {
                     if (recipe) {
@@ -235,43 +240,58 @@ class SousChef {
                     }
                     else {
                         console.log(`Recipe does not exist for ${recipeId}. Querying Spoonacular for details.`);
-                        var recipeInfo;
-                        var recipeSteps;
+                        let recipeInfo;
+                        let recipeSteps;
                         return this.recipeClient.getInfoById(recipeId)
                             .then((response) => {
                                 recipeInfo = response;
-                                return this.recipeClient.getStepsById(recipeId)
+                                return this.recipeClient.getStepsById(recipeId);
                             })
                             .then((response) => {
                                 recipeSteps = response;
-                                var recipeDetail = this.makeFormattedSteps(recipeInfo, recipeSteps);
+                                let recipeDetail = this.getRecipeInstructionsResponse(recipeInfo, recipeSteps);
                                 // add recipe to datastore
                                 return this.recipeStore.addRecipe(recipeId, recipeInfo['title'], recipeDetail, state.ingredientCuisine, state.user);
-                            })
+                            });
                     }
                 })
                 .then((recipe) => {
-                    state.ingredientCuisine = null;
-                    state.conversationContext = null;
-                    var recipeDetail = recipe.properties.detail[0].value.replace(/\\n/g, '\n');
+                    let recipeDetail = recipe.properties.detail[0].value.replace(/\\n/g, '\n');
+                    this.snsClient.postRecipeMessage(state, recipeId, recipe.properties['title'][0].value);
+                    this.clearUserState(state);
                     return Promise.resolve(recipeDetail);
                 });
         }
         else {
-            state.conversationContext['selection_valid'] = false;
-            return Promise.resolve('Invalid selection! Say anything to see your choices again...');
+            this.clearUserState(state);
+            return Promise.resolve('Invalid selection! Say anything to start over...');
         }
     }
 
-    makeFormattedSteps(recipeInfo, recipeSteps) {
-        var response = 'Ok, it takes *';
+    clearUserState(state) {
+        state.ingredientCuisine = null;
+        state.conversationContext = null;
+        state.conversationStarted = false;
+    }
+
+    getRecipeListResponse(matchingRecipes) {
+        let response = 'Let\'s see here...\nI\'ve found these recipes: \n';
+        for (let i = 0; i < matchingRecipes.length; i++) {
+            response += `${(i + 1)}.${matchingRecipes[i].title}\n`;
+        }
+        response += '\nPlease enter the corresponding number of your choice.';
+        return response;
+    }
+
+    getRecipeInstructionsResponse(recipeInfo, recipeSteps) {
+        let response = 'Ok, it takes *';
         response += `${recipeInfo['readyInMinutes']}* minutes to make *`;
         response += `${recipeInfo['servings']}* servings of *`;
         response += `${recipeInfo['title']}*. Here are the steps:\n\n`;
         if (recipeSteps != null && recipeSteps.length > 0) {
-            for (var i = 0; i < recipeSteps.length; i++) {
-                var equipStr = '';
-                for (var e of recipeSteps[i]['equipment']) {
+            for (let i = 0; i < recipeSteps.length; i++) {
+                let equipStr = '';
+                for (let e of recipeSteps[i]['equipment']) {
                     equipStr += `${e['name']},`;
                 }
                 if (equipStr.length == 0) {
