@@ -275,39 +275,6 @@ class GraphRecipeStore {
     }
 
     /**
-     * Finds the user's favorite recipes in Graph.
-     * @param userVertex - The existing Graph vertex for the user
-     * @param count - The max number of recipes to return
-     * @returns {Promise.<TResult>}
-     */
-    findFavoriteRecipesForUser(userVertex, count) {
-        return new Promise((resolve, reject) => {
-            let query = `g.V().hasLabel("person").has("name", "${userVertex.properties['name'][0]['value']}").outE().order().by("count", decr).inV().hasLabel("recipe").limit(${count}).path()`;
-            this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
-                if (error) {
-                    console.log(`Error finding Vertexes: ${error}`);
-                    reject(error);
-                }
-                else if (response.result && response.result.data && response.result.data.length > 0) {
-                    let recipes = [];
-                    let paths = response.result.data;
-                    for (let path of paths) {
-                        let recipe = {
-                            id: path.objects[2].properties.name[0].value,
-                            title: path.objects[2].properties.title[0].value,
-                        }
-                        recipes.push(recipe);
-                    }
-                    resolve(recipes);
-                }
-                else {
-                    resolve([]);
-                }
-            });
-        });
-    }
-
-    /**
      * Adds a new recipe to Graph if a recipe with the specified name does not already exist.
      * @param recipeId - The ID of the recipe (typically the ID of the recipe returned from Spoonacular)
      * @param recipeTitle - The title of the recipe
@@ -331,6 +298,112 @@ class GraphRecipeStore {
                 return Promise.resolve(recipeVertex);
             });
     }
+
+    /**
+     * Finds the user's favorite recipes in Graph.
+     * @param userVertex - The existing Graph vertex for the user
+     * @param count - The max number of recipes to return
+     * @returns {Promise.<TResult>}
+     */
+    findFavoriteRecipesForUser(userVertex, count) {
+        return new Promise((resolve, reject) => {
+            let query = `g.V().hasLabel("person").has("name", "${userVertex.properties['name'][0]['value']}").outE().order().by("count", decr).inV().hasLabel("recipe").limit(${count})`;
+            this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
+                if (error) {
+                    console.log(`Error finding Vertexes: ${error}`);
+                    reject(error);
+                }
+                else if (response.result && response.result.data && response.result.data.length > 0) {
+                    let recipes = [];
+                    let recipeVertices = response.result.data;
+                    for (let recipeVertex of recipeVertices) {
+                        let recipe = {
+                            id: recipeVertex.properties.name[0].value,
+                            title: recipeVertex.properties.title[0].value,
+                        }
+                        recipes.push(recipe);
+                    }
+                    resolve(recipes);
+                }
+                else {
+                    resolve([]);
+                }
+            });
+        });
+    }
+
+    /**
+     * Finds popular recipes using the specified ingredient.
+     * @param ingredientsStr - The ingredient or comma-separated list of ingredients specified by the user
+     * @param userVertex - The Graph vertex for the user requesting recommended recipes
+     * @param count - The max number of recipes to return
+     * @returns {Promise.<TResult>}
+     */
+    findRecommendedRecipesForIngredient(ingredientsStr, userVertex, count) {
+        ingredientsStr = this.getUniqueIngredientsName(ingredientsStr);
+        let query = `g.V().hasLabel("ingredient").has("name","${ingredientsStr}")`;
+        query += `.inE().outV().hasLabel("person").has("name",neq("${userVertex.properties.name[0].value}"))`;
+        query += `.outE().has("count",gt(1)).order().by("count", decr).inV().hasLabel("recipe")`;
+        query += `.inE().outV().hasLabel("ingredient").has("name","${ingredientsStr}").path()`;
+        return this.getRecommendedRecipes(query, count);
+    }
+
+    /**
+     * Finds popular recipes using the specified cuisine.
+     * @param cuisine - The cuisine specified by the user
+     * @param userVertex - The Graph vertex for the user requesting recommended recipes
+     * @param count - The max number of recipes to return
+     * @returns {Promise.<TResult>}
+     */
+    findRecommendedRecipesForCuisine(cuisine, userVertex, count) {
+        cuisine = this.getUniqueCuisineName(cuisine);
+        let query = `g.V().hasLabel("cuisine").has("name","${cuisine}")`;
+        query += `.inE().outV().hasLabel("person").has("name",neq("${userVertex.properties.name[0].value}"))`;
+        query += `.outE().has("count",gt(1)).order().by("count", decr).inV().hasLabel("recipe")`;
+        query += `.inE().outV().hasLabel("cuisine").has("name","${cuisine}").path()`;
+        return this.getRecommendedRecipes(query, count);
+    }
+
+    getRecommendedRecipes(query, count) {
+        return new Promise((resolve, reject) => {
+            this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
+                if (error) {
+                    console.log(`Error finding Vertexes: ${error}`);
+                    reject(error);
+                }
+                else if (response.result && response.result.data && response.result.data.length > 0) {
+                    let recipes = [];
+                    let recipeHash = {};
+                    let paths = response.result.data;
+                    for (let path of paths) {
+                        let recipeVertex = path.objects[4];
+                        let recipeId = recipeVertex.properties.name[0].value;
+                        let recipe = recipeHash[recipeId];
+                        if (! recipe) {
+                            if (recipes.length >= count) {
+                                continue;
+                            }
+                            recipe = {
+                                id: recipeId,
+                                title: recipeVertex.properties.title[0].value,
+                                recommendedUserCount: 1
+                            };
+                            recipes.push(recipe);
+                            recipeHash[recipeId] = recipe;
+                        }
+                        else {
+                            recipe.recommendedUserCount += 1;
+                        }
+                    }
+                    resolve(recipes);
+                }
+                else {
+                    resolve([]);
+                }
+            });
+        });
+    }
+    
 
     /**
      * Creates or updates an edge between the specified user and recipe.

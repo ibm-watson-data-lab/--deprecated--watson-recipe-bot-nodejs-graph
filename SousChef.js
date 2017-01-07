@@ -4,6 +4,8 @@ const ConversationV1 = require('watson-developer-cloud/conversation/v1');
 const RecipeClient = require('./RecipeClient');
 const SlackBot = require('slackbots');
 
+const MAX_RECIPES = 5;
+
 class SousChef {
 
     constructor(recipeStore, slackToken, recipeClientApiKey, conversationUsername, conversationPassword, conversationWorkspaceId, snsClient) {
@@ -134,7 +136,7 @@ class SousChef {
     }
 
     handleFavoritesMessage(state) {
-        return this.recipeStore.findFavoriteRecipesForUser(state.user, 5)
+        return this.recipeStore.findFavoriteRecipesForUser(state.user, MAX_RECIPES)
             .then((recipes) => {
                 // update state
                 state.conversationContext['recipes'] = recipes;
@@ -154,10 +156,34 @@ class SousChef {
             .then((ingredient) => {
                 if (ingredient) {
                     console.log(`Ingredient exists for ${ingredientsStr}. Returning recipes from datastore.`);
-                    // increment the count on the user-ingredient
-                    return this.recipeStore.recordIngredientRequestForUser(ingredient, state.user)
+                    // get recipes from datastore
+                    let matchingRecipes = [];
+                    // get recommended recipes first
+                    return this.recipeStore.findRecommendedRecipesForIngredient(ingredientsStr, state.user, MAX_RECIPES)
+                        .then((recommendedRecipes) => {
+                            let recipeIds = [];
+                            for (let recipe of recommendedRecipes) {
+                                recipe.recommended = true;
+                                recipeIds.push(recipe.id);
+                                matchingRecipes.push(recipe);
+                            }
+                            if (matchingRecipes.length < MAX_RECIPES) {
+                                let recipes = JSON.parse(ingredient.properties.detail[0].value);
+                                for (let recipe of recipes) {
+                                    let recipe_id = recipe.id + '';
+                                    if (recipeIds.indexOf(recipe_id) < 0) {
+                                        recipeIds.push(recipe_id);
+                                        matchingRecipes.push(recipe);
+                                        if (matchingRecipes.length >= MAX_RECIPES) {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            return this.recipeStore.recordIngredientRequestForUser(ingredient, state.user)
+                        })
                         .then(() => {
-                            return Promise.resolve(ingredient);
+                            return Promise.resolve({ingredient: ingredient, recipes: matchingRecipes});
                         });
                 }
                 else {
@@ -167,11 +193,15 @@ class SousChef {
                         .then((matchingRecipes) => {
                             // add ingredient to datastore
                             return this.recipeStore.addIngredient(ingredientsStr, matchingRecipes, state.user)
+                        })
+                        .then((ingredient) => {
+                            return Promise.resolve({ingredient: ingredient, recipes: JSON.parse(ingredient.properties.detail[0].value)});
                         });
                 }
             })
-            .then((ingredient) => {
-                let matchingRecipes = JSON.parse(ingredient.properties.detail[0].value);
+            .then((result) => {
+                let ingredient = result.ingredient;
+                let matchingRecipes = result.recipes;
                 // update state
                 state.conversationContext['recipes'] = matchingRecipes;
                 state.ingredientCuisine = ingredient;
@@ -190,10 +220,34 @@ class SousChef {
             .then((cuisine) => {
                 if (cuisine) {
                     console.log(`Cuisine exists for ${cuisineStr}. Returning recipes from datastore.`);
-                    // increment the count on the user-cuisine
-                    return this.recipeStore.recordCuisineRequestForUser(cuisine, state.user)
+                    // get recipes from datastore
+                    let matchingRecipes = [];
+                    // get recommended recipes first
+                    return this.recipeStore.findRecommendedRecipesForCuisine(cuisineStr, state.user, MAX_RECIPES)
+                        .then((recommendedRecipes) => {
+                            let recipeIds = [];
+                            for (let recipe of recommendedRecipes) {
+                                recipe.recommended = true;
+                                recipeIds.push(recipe.id);
+                                matchingRecipes.push(recipe);
+                            }
+                            if (matchingRecipes.length < MAX_RECIPES) {
+                                let recipes = JSON.parse(cuisine.properties.detail[0].value);
+                                for (let recipe of recipes) {
+                                    let recipe_id = recipe.id + '';
+                                    if (recipeIds.indexOf(recipe_id) < 0) {
+                                        recipeIds.push(recipe_id);
+                                        matchingRecipes.push(recipe);
+                                        if (matchingRecipes.length >= MAX_RECIPES) {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            return this.recipeStore.recordCuisineRequestForUser(cuisine, state.user)
+                        })
                         .then(() => {
-                            return Promise.resolve(cuisine);
+                            return Promise.resolve({cuisine: cuisine, recipes: matchingRecipes});
                         });
                 }
                 else {
@@ -203,11 +257,15 @@ class SousChef {
                         .then((matchingRecipes) => {
                             // add cuisine to datastore
                             return this.recipeStore.addCuisine(cuisineStr, matchingRecipes, state.user)
+                        })
+                        .then((cuisine) => {
+                            return Promise.resolve({cuisine: cuisine, recipes: JSON.parse(cuisine.properties.detail[0].value)});
                         });
                 }
             })
-            .then((cuisine) => {
-                let matchingRecipes = JSON.parse(cuisine.properties.detail[0].value);
+            .then((result) => {
+                let cuisine = result.cuisine;
+                let matchingRecipes = result.recipes;
                 // update state
                 state.conversationContext['recipes'] = matchingRecipes;
                 state.ingredientCuisine = cuisine;
@@ -223,7 +281,7 @@ class SousChef {
         if (state.conversationContext['selection']) {
             selection = parseInt(state.conversationContext['selection']);
         }
-        if (selection >= 1 && selection <= 5) {
+        if (selection >= 1 && selection <= MAX_RECIPES) {
             // we want to get a the recipe based on the selection
             // first we see if we already have the recipe in our datastore
             let recipes = state.conversationContext['recipes'];
@@ -277,7 +335,15 @@ class SousChef {
     getRecipeListResponse(matchingRecipes) {
         let response = 'Let\'s see here...\nI\'ve found these recipes: \n';
         for (let i = 0; i < matchingRecipes.length; i++) {
-            response += `${(i + 1)}.${matchingRecipes[i].title}\n`;
+            let recipe = matchingRecipes[i];
+            response += `${(i + 1)}.${recipe.title}`;
+            if (recipe.recommended) {
+                let users = recipe.recommendedUserCount;
+                let s1 = (users==1?"":"s");
+                let s2 = (users==1?"s":"");
+                response += ` *(${users} other user${s1} like${s2} this)`;
+            }
+            response += '\n';
         }
         response += '\nPlease enter the corresponding number of your choice.';
         return response;
