@@ -342,9 +342,10 @@ class GraphRecipeStore {
     findRecommendedRecipesForIngredient(ingredientsStr, userVertex, count) {
         ingredientsStr = this.getUniqueIngredientsName(ingredientsStr);
         let query = `g.V().hasLabel("ingredient").has("name","${ingredientsStr}")`;
-        query += `.inE().outV().hasLabel("person").has("name",neq("${userVertex.properties.name[0].value}"))`;
-        query += `.outE().has("count",gt(1)).order().by("count", decr).inV().hasLabel("recipe")`;
-        query += `.inE().outV().hasLabel("ingredient").has("name","${ingredientsStr}").path()`;
+        query += `.in("has").as("r")`;
+        query += `.inE().has("count",gt(1)).order().by("count", decr)`;
+        query += `.outV().hasLabel("person").has("name",neq("${userVertex.properties.name[0].value}"))`;
+        query += `.path()`;
         return this.getRecommendedRecipes(query, count);
     }
 
@@ -358,9 +359,10 @@ class GraphRecipeStore {
     findRecommendedRecipesForCuisine(cuisine, userVertex, count) {
         cuisine = this.getUniqueCuisineName(cuisine);
         let query = `g.V().hasLabel("cuisine").has("name","${cuisine}")`;
-        query += `.inE().outV().hasLabel("person").has("name",neq("${userVertex.properties.name[0].value}"))`;
-        query += `.outE().has("count",gt(1)).order().by("count", decr).inV().hasLabel("recipe")`;
-        query += `.inE().outV().hasLabel("cuisine").has("name","${cuisine}").path()`;
+        query += `.in("has").as("r")`;
+        query += `.inE().has("count",gt(1)).order().by("count", decr)`;
+        query += `.outV().hasLabel("person").has("name",neq("${userVertex.properties.name[0].value}"))`;
+        query += `.path()`;
         return this.getRecommendedRecipes(query, count);
     }
 
@@ -376,7 +378,7 @@ class GraphRecipeStore {
                     let recipeHash = {};
                     let paths = response.result.data;
                     for (let path of paths) {
-                        let recipeVertex = path.objects[4];
+                        let recipeVertex = path.objects[1];
                         let recipeId = recipeVertex.properties.name[0].value;
                         let recipe = recipeHash[recipeId];
                         if (! recipe) {
@@ -403,7 +405,6 @@ class GraphRecipeStore {
             });
         });
     }
-    
 
     /**
      * Creates or updates an edge between the specified user and recipe.
@@ -433,7 +434,15 @@ class GraphRecipeStore {
                         inV: recipeVertex.id,
                         properties: {'count': 1}
                     };
-                    return this.addUpdateEdge(edge);
+                    return this.addUpdateEdge(edge)
+                        .then(() => {
+                            edge = {
+                                label: 'has',
+                                outV: recipeVertex.id,
+                                inV: ingredientCuisineVertex.id
+                            };
+                            return this.addEdgeIfNotExists(edge)
+                        });
                 }
                 else {
                     return Promise.resolve(null);
@@ -495,6 +504,38 @@ class GraphRecipeStore {
                         }
                         else {
                             resolve(body.result.data[0]);
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    /**
+     * Adds a new edge to Graph if an edge with the same out_v and in_v does not exist.
+     * @param edge - The edge to add
+     * @returns {Promise}
+     */
+    addEdgeIfNotExists(edge) {
+        return new Promise((resolve, reject) => {
+            let query = `g.V(${edge.outV}).outE().inV().hasId(${edge.inV}).path()`;
+            this.graphClient.gremlin(`def g = graph.traversal(); ${query}`, (error, response) => {
+                if (error) {
+                    console.log(`Error finding Edge: ${error}`);
+                    reject(error);
+                }
+                else if (response.result && response.result.data && response.result.data.length > 0) {
+                    console.log(`Edge from ${edge.outV} to ${edge.inV} exists.`);
+                    resolve(null);
+                }
+                else {
+                    console.log(`Creating edge from ${edge.outV} to ${edge.inV}`);
+                    this.graphClient.edges().create(edge.label, edge.outV, edge.inV, edge.properties, (error, body) => {
+                        if (error) {
+                            reject(error);
+                        }
+                        else {
+                            resolve(null);
                         }
                     });
                 }
