@@ -342,7 +342,7 @@ class GraphRecipeStore {
     findRecommendedRecipesForIngredient(ingredientsStr, userVertex, count) {
         ingredientsStr = this.getUniqueIngredientsName(ingredientsStr);
         let query = `g.V().hasLabel("ingredient").has("name","${ingredientsStr}")`;
-        query += `.in("has").as("r")`;
+        query += `.in("has")`;
         query += `.inE().has("count",gt(1)).order().by("count", decr)`;
         query += `.outV().hasLabel("person").has("name",neq("${userVertex.properties.name[0].value}"))`;
         query += `.path()`;
@@ -359,7 +359,7 @@ class GraphRecipeStore {
     findRecommendedRecipesForCuisine(cuisine, userVertex, count) {
         cuisine = this.getUniqueCuisineName(cuisine);
         let query = `g.V().hasLabel("cuisine").has("name","${cuisine}")`;
-        query += `.in("has").as("r")`;
+        query += `.in("has")`;
         query += `.inE().has("count",gt(1)).order().by("count", decr)`;
         query += `.outV().hasLabel("person").has("name",neq("${userVertex.properties.name[0].value}"))`;
         query += `.path()`;
