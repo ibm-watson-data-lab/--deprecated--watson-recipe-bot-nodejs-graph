@@ -11,7 +11,7 @@ class RecipeClient {
 
     findByIngredients(ingredients) {
         return new Promise((resolve, reject) => {
-            let queryStr = `?fillIngredients=false&ingredients=${ingredients}&limitLicense=false&number=5&ranking=1`;
+            let queryStr = `?fillIngredients=false&ingredients=${encodeURIComponent(ingredients)}&limitLicense=false&number=5&ranking=1`;
             let options = {
                 hostname: host,
                 port: 443,
@@ -47,7 +47,7 @@ class RecipeClient {
 
     findByCuisine(cuisine) {
         return new Promise((resolve, reject) => {
-            let queryStr = `?number=5&query=+&cuisine=${cuisine}`;
+            let queryStr = `?number=5&query=+&cuisine=${encodeURIComponent(cuisine)}`;
             let options = {
                 hostname: host,
                 port: 443,
