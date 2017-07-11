@@ -1,5 +1,7 @@
 # Watson Recipe Bot + IBM Graph
 
+:no_entry_sign: This project is no longer maintained.
+
 This project is based on the [Watson Recipe Bot example](https://medium.com/ibm-watson-developer-cloud/how-to-build-a-recipe-slack-bot-using-watson-conversation-and-spoonacular-api-487eacaf01d4#.i0q8fnhuu).
 The Watson Recipe Bot is a Slack bot that recommends recipes based on ingredients or cuisines.
 This project is essentially a fork of the Watson Recipe Bot with some additional features, including:
